@@ -1,5 +1,8 @@
-#include <WiFiManager.h>
 #include "SocketClient.h"
+#include "globals.h"
+
+const char* ssid     = myssid;     // declared in globals.h        
+const char* password = mypassword; // declared in globals.h   
 
 SocketClient testClient;
 
@@ -17,9 +20,19 @@ void recievedData(String data) {
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  WiFiManager wifiManager;
-  // wifiManager.resetSettings();
-  wifiManager.autoConnect("ESPAutoConnectAP");
+
+  // Connect to the network
+  WiFi.begin(ssid, password);         
+  Serial.print("\nConnecting to "); 
+  Serial.print(ssid);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print('.');
+  }
+  Serial.println("\nConnection established!");  
+  Serial.print("IP address:\t");
+  Serial.println(WiFi.localIP()); 
+
 
   // test client
   testClient.setSocketHost("sensordata.space", 80);  //192.168.0.87

@@ -4,3 +4,5 @@
 .vscode/ipch
 
 .pio/build
+
+src/globals.h
