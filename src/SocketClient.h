@@ -25,6 +25,7 @@ protected:
   const char *updateURL = "http://192.168.0.87/update/files/firmware.bin";  // change
 
   char macAddress[20];
+  String localIP;
 
   ESP8266WiFiMulti WiFiMulti;
   WebSocketsClient webSocket;
@@ -45,9 +46,11 @@ public:
 
   void init() {
     // initial setup
+    // init mac address
     String mac = WiFi.macAddress();
     mac.toCharArray(macAddress, 50);
-
+    // init local IP
+    localIP = WiFi.localIP().toString();
     webSocket.begin(socketHostURL, port, "/"); // server address, port and URL
     webSocket.onEvent(SocketClient_webSocketEvent);   // initialte our event handler
     // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
@@ -67,11 +70,9 @@ public:
   void setDeviceType(const char * deviceType) {
     this->deviceType = deviceType;
   }
-  void setHostPort(int port) {
-    this->port = port;
-  }
-  void setSocketHostURL(const char * socketHostURL) {
+  void setSocketHost(const char * socketHostURL, int port) {
     this->socketHostURL = socketHostURL;
+    this->port = port;
   }
   void setUpdateURL(const char * updateURL) {
     this->updateURL = updateURL;

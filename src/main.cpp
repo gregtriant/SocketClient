@@ -22,8 +22,7 @@ void setup() {
   wifiManager.autoConnect("ESPAutoConnectAP");
 
   // test client
-  testClient.setHostPort(80);
-  testClient.setSocketHostURL("sensordata.space");  //192.168.0.87
+  testClient.setSocketHost("sensordata.space", 80);  //192.168.0.87
   testClient.setVersion(0.3);
   testClient.setDeviceApp("Your_app_name");
   testClient.setDeviceType("Wemos D1 mini");
