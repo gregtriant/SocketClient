@@ -57,15 +57,26 @@ public:
     webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
   }
 
+  void initSSL() {
+    // initial setup
+    // init mac address
+    String mac = WiFi.macAddress();
+    mac.toCharArray(macAddress, 50);
+    // init local IP
+    localIP = WiFi.localIP().toString();
+    webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
+    webSocket.onEvent(SocketClient_webSocketEvent);   // initialte our event handler
+    // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
+    webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
+  }
+
   void loop() {
     this->webSocket.loop();
   }
   // setters
-  void setVersion(float version) {
-    this->version = version;
-  }
-  void setDeviceApp(const char * deviceApp) {
+  void setAppAndVersion(const char * deviceApp, float version) {
     this->deviceApp = deviceApp;
+    this->version = version;
   }
   void setDeviceType(const char * deviceType) {
     this->deviceType = deviceType;
@@ -73,9 +84,6 @@ public:
   void setSocketHost(const char * socketHostURL, int port) {
     this->socketHostURL = socketHostURL;
     this->port = port;
-  }
-  void setUpdateURL(const char * updateURL) {
-    this->updateURL = updateURL;
   }
   void setDataToSendFunciton(DataToSendFunction func) {
     this->defineDataToSend = func;

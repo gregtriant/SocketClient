@@ -6,7 +6,6 @@ const char* password = mypassword; // declared in globals.h
 
 SocketClient testClient;
 
-
 String defineDataToSend() {
   String stringToSend = "Hello from esp";
   return stringToSend;
@@ -18,6 +17,7 @@ void recievedData(String data) {
 }
 
 void setup() {
+  
   Serial.begin(115200);
   delay(1000);
 
@@ -29,20 +29,18 @@ void setup() {
     delay(1000);
     Serial.print('.');
   }
-  Serial.println("\nConnection established!");  
   Serial.print("IP address:\t");
   Serial.println(WiFi.localIP()); 
 
 
   // test client
-  testClient.setSocketHost("sensordata.space", 80);  //192.168.0.87
-  testClient.setVersion(0.3);
-  testClient.setDeviceApp("Your_app_name");
-  testClient.setDeviceType("Wemos D1 mini");
-  testClient.setUpdateURL("http://192.168.0.87/update/files/firmware.bin");
+  testClient.setSocketHost("sensordata.ddnsfree.com", 443);  //192.168.0.56
+  testClient.setAppAndVersion("Development", 0.3);
+  testClient.setDeviceType("ESP8266");
   testClient.setDataToSendFunciton(defineDataToSend);
   testClient.setRecievedDataFunciton(recievedData);
-  testClient.init();
+  
+  testClient.initSSL(); // if you dont want ssl use .init and change the port.
 }
 
 void loop() {
