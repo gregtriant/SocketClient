@@ -22,7 +22,6 @@ protected:
   const char *deviceType = "Wemos D1 mini";
   const char *socketHostURL = "sensordata.space";  // socket host  // change 192.168.0.87
   int port = 80; // socket port                    // change
-  const char *updateURL = "http://192.168.0.87/update/files/firmware.bin";  // change
 
   char macAddress[20];
   String localIP;
@@ -38,9 +37,14 @@ protected:
   void sendDataWithSocket(DynamicJsonDocument doc);
   void getDataFromSocket(DynamicJsonDocument recievedDoc); // TODO
   //OTA
-  void updatingMode();
+  void updatingMode(String updateURL);
 
 public:
+  static void update_started();
+  static void update_finished();
+  static void update_progress(int cur, int total);
+  static void update_error(int err);
+  
   // public methods
   SocketClient();
 

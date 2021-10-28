@@ -32,10 +32,9 @@ void SocketClient::gotMessageSocket(uint8_t * payload) {
   const char* serverMessage = doc["message"];
   // update
   if (strcmp(serverMessage, "update") == 0) {
-    const char* url = doc["url"];
-    updateURL = url;
-    // Serial.println(updateURL);
-    updatingMode();
+    String updateURL = doc["url"];
+    Serial.println(updateURL);
+    updatingMode(updateURL);
   }
 
   if (strcmp(serverMessage, "sendData") == 0) {
@@ -87,7 +86,6 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
       doc["deviceId"] = globalSC->macAddress;
       doc["deviceApp"] = globalSC->deviceApp;
       doc["deviceType"] = globalSC->deviceType;
-      doc["updateURL"] = globalSC->updateURL;
       doc["version"] = globalSC->version;
       doc["localIP"] = globalSC->localIP;
       String JsonToSend = "";
@@ -122,33 +120,33 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
 }
 
 
-// --------------------------------------------------------  OTA functions  -----------------------------------------
-void update_started() {
+// --------------------------------------------------------  OTA functions  ----------------------------------------- ??
+void SocketClient::update_started() {
   Serial.println("CALLBACK:  HTTP update process started");
 }
 
-void update_finished() {
+void SocketClient::update_finished() {
   Serial.println("CALLBACK:  HTTP update process finished");
 }
 
-void update_progress(int cur, int total) {
+void SocketClient::update_progress(int cur, int total) {
   Serial.printf("CALLBACK:  HTTP update process at %d of %d bytes...\n", cur, total);
 }
 
-void update_error(int err) {
+void SocketClient::update_error(int err) {
   Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
 }
 
-void SocketClient::updatingMode() {
+void SocketClient::updatingMode(String updateURL) {
   // wait for WiFi connection
   if ((WiFiMulti.run() == WL_CONNECTED)) {
     WiFiClient client;
     // callbacks
     ESPhttpUpdate.setLedPin(LED_BUILTIN, LOW);
-    ESPhttpUpdate.onStart(update_started);
-    ESPhttpUpdate.onEnd(update_finished);
-    ESPhttpUpdate.onProgress(update_progress);
-    ESPhttpUpdate.onError(update_error);
+    ESPhttpUpdate.onStart(SocketClient::update_started);
+    ESPhttpUpdate.onEnd(SocketClient::update_finished);
+    // ESPhttpUpdate.onProgress(SocketClient::update_progress);
+    ESPhttpUpdate.onError(SocketClient::update_error);
 
     t_httpUpdate_return ret = ESPhttpUpdate.update(client, updateURL); // t_httpUpdate_return ret = ESPhttpUpdate.update(client, "server", 80, "file.bin");
 
