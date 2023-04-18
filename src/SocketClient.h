@@ -2,9 +2,26 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebSocketsClient.h>
-#include <ESP8266WiFi.h>
-#include <ESP8266WiFiMulti.h>
-#include <ESP8266httpUpdate.h>
+
+#if defined(ESP32) || defined(LIBRETUYA)
+  #include <WiFi.h>
+  #include <AsyncTCP.h>
+  #include <WiFi.h>
+  #include <WiFiMulti.h>
+  #include <WiFiClientSecure.h>
+  #include <WebSocketsClient.h>
+  #include <HTTPClient.h>
+  #include <Update.h>
+#elif defined(ESP8266)
+  #include <ESP8266WiFi.h>
+  #include <ESPAsyncTCP.h>
+  #include <ESP8266WiFi.h>
+  #include <ESP8266WiFiMulti.h>
+  #include <ESP8266httpUpdate.h>
+#else
+  #error Platform not supported
+#endif
+
 
 #define USE_SERIAL Serial
 
@@ -19,31 +36,40 @@ protected:
   // data
   float version = 0.2;                             // change
   const char *deviceApp = "Test1";
-  const char *deviceType = "Wemos D1 mini";
+  const char *deviceType = "ESP32";
   const char *socketHostURL = "sensordata.space";  // socket host  // change 192.168.0.87
   int port = 80; // socket port                    // change
 
   char macAddress[20];
   String localIP;
+  #if defined(ESP32) || defined(LIBRETUYA)
+  WiFiMulti wiFiMulti;
+  #elif defined(ESP8266)
+  ESP8266WiFiMulti wiFiMulti;
+  #endif
 
-  ESP8266WiFiMulti WiFiMulti;
   WebSocketsClient webSocket;
   DataToSendFunction defineDataToSend;
   RecievedDataFunction recievedData;
 
-  //Sockets
-  void webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
+  // Sockets
+  // void webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
   void gotMessageSocket(uint8_t * payload);
   void sendDataWithSocket(DynamicJsonDocument doc);
   void getDataFromSocket(DynamicJsonDocument recievedDoc); // TODO
-  //OTA
-  void updatingMode(String updateURL);
 
 public:
+  // OTA Functions // for esp8266
+  void updatingMode(String updateURL);
   static void update_started();
   static void update_finished();
   static void update_progress(int cur, int total);
   static void update_error(int err);
+  // OTA Functions // for esp32
+  void checkUpdate(String host);
+  void updateFirmware(uint8_t *data, size_t len);
+  int totalLength;       //total size of firmware
+  int currentLength = 0; //current size of written firmware
   
   // public methods
   SocketClient();

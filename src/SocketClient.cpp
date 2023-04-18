@@ -23,8 +23,6 @@ SocketClient::SocketClient() {
   recievedData = SocketClient_recievedData;
 }
 
-
-
 void SocketClient::gotMessageSocket(uint8_t * payload) {
   DynamicJsonDocument doc(300);
   USE_SERIAL.printf("[WSc] got data: %s\n", payload);
@@ -100,7 +98,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
     break;
   case WStype_BIN:
     USE_SERIAL.printf("[WSc] get binary length: %u\n", length);
-    hexdump(payload, length);
+    // hexdump(payload, length);
     // send data to server
     // webSocket.sendBIN(payload, length);
     break;
@@ -137,11 +135,76 @@ void SocketClient::update_error(int err) {
   Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
 }
 
+// for ESP32
+void SocketClient::checkUpdate(String host) {
+  HTTPClient client;
+  // Connect to external web server
+  client.begin(host);
+  // Get file, just to check if each reachable
+  int resp = client.GET();
+  Serial.print("Response: ");
+  Serial.println(resp);
+  // If file is reachable, start downloading
+  if(resp == 200){
+    // get length of document (is -1 when Server sends no Content-Length header)
+    totalLength = client.getSize();
+    // transfer to local variable
+    int len = totalLength;
+    // this is required to start firmware update process
+    Update.begin(UPDATE_SIZE_UNKNOWN);
+    Serial.printf("FW Size: %u\n",totalLength);
+    // create buffer for read
+    uint8_t buff[128] = { 0 };
+    // get tcp stream
+    WiFiClient * stream = client.getStreamPtr();
+    // read all data from server
+    Serial.println("Updating firmware...");
+    while(client.connected() && (len > 0 || len == -1)) {
+      // get available data size
+      size_t size = stream->available();
+      if(size) {
+        // read up to 128 byte
+        int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
+        // pass to function
+        SocketClient::updateFirmware(buff, c);
+        if(len > 0) {
+          len -= c;
+        }
+      }
+      delay(1);
+    }
+  } else {
+    Serial.println("Cannot download firmware file. Only HTTP response 200: OK is supported. Double check firmware location #defined in HOST.");
+  }
+  client.end();
+}
+
+// for ESP32
+// Function to update firmware incrementally
+// Buffer is declared to be 128 so chunks of 128 bytes
+// from firmware is written to device until server closes
+void SocketClient::updateFirmware(uint8_t *data, size_t len){
+  Update.write(data, len);
+  currentLength += len;
+  // Print dots while waiting for update to finish
+  Serial.print('.');
+  // if current length of written firmware is not equal to total firmware size, repeat
+  if(currentLength != totalLength) return;
+  Update.end(true);
+  Serial.printf("\nUpdate Success, Total Size: %u\nRebooting...\n", currentLength);
+  // Restart ESP32 to see changes 
+  ESP.restart();
+}
+
 void SocketClient::updatingMode(String updateURL) {
+  
+  #if defined(ESP32) || defined(LIBRETUYA)
+  SocketClient::checkUpdate(updateURL);
+
+  #elif defined(ESP8266)
   // wait for WiFi connection
-  if ((WiFiMulti.run() == WL_CONNECTED)) {
+  if (WiFi.status() == WL_CONNECTED) {
     WiFiClient client;
-    // callbacks
     ESPhttpUpdate.setLedPin(LED_BUILTIN, LOW);
     ESPhttpUpdate.onStart(SocketClient::update_started);
     ESPhttpUpdate.onEnd(SocketClient::update_finished);
@@ -149,7 +212,6 @@ void SocketClient::updatingMode(String updateURL) {
     ESPhttpUpdate.onError(SocketClient::update_error);
 
     t_httpUpdate_return ret = ESPhttpUpdate.update(client, updateURL); // t_httpUpdate_return ret = ESPhttpUpdate.update(client, "server", 80, "file.bin");
-
     switch (ret) {
       case HTTP_UPDATE_FAILED:
         Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
@@ -164,5 +226,6 @@ void SocketClient::updatingMode(String updateURL) {
         break;
     }
   }
+  #endif
 }
 
