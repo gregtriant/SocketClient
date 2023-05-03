@@ -1,5 +1,9 @@
 #include "SocketClient.h"
 
+#ifndef UPDATE_SIZE_UNKNOWN
+#define UPDATE_SIZE_UNKNOWN 0xFFFFFFFF
+#endif
+
 // function for the user
 String SocketClient_defineDataToSend() {
   return "hello";
@@ -136,10 +140,12 @@ void SocketClient::update_error(int err) {
 }
 
 // for ESP32
+#if defined(ESP32) || defined(LIBRETUYA)
 void SocketClient::checkUpdate(String host) {
   HTTPClient client;
   // Connect to external web server
-  client.begin(host);
+  // WiFiClient wificlient;
+  client.begin(host); //wificlient, 
   // Get file, just to check if each reachable
   int resp = client.GET();
   Serial.print("Response: ");
@@ -178,6 +184,7 @@ void SocketClient::checkUpdate(String host) {
   }
   client.end();
 }
+#endif
 
 // for ESP32
 // Function to update firmware incrementally

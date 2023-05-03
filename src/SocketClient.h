@@ -36,7 +36,15 @@ protected:
   // data
   float version = 0.2;                             // change
   const char *deviceApp = "Test1";
-  const char *deviceType = "ESP32";
+  const char *deviceType = 
+  #if defined(ESP32) || defined(LIBRETUYA)
+  "ESP32";
+  #elif defined(ESP8266)
+  "ESP8266";
+  #else
+  "UNKNOWN";
+  #endif
+
   const char *socketHostURL = "sensordata.space";  // socket host  // change 192.168.0.87
   int port = 80; // socket port                    // change
 
