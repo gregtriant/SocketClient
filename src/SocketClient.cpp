@@ -4,6 +4,30 @@
 #define UPDATE_SIZE_UNKNOWN 0xFFFFFFFF
 #endif
 
+unsigned long SocketClient::last_dog = 0;
+void SocketClient::watchdog(void *vv){
+  SocketClient *sc = (SocketClient*)vv;
+  if(!sc)
+    return;
+  WebSocketsClient &wsc = sc->webSocket;
+    if(!wsc.isConnected()){
+    USE_SERIAL.printf("* reconnect *\n");
+    sc->reconnect();
+    return;
+  }
+  if(wsc.sendPing()){
+    USE_SERIAL.printf("*");    
+  }else{
+    wsc.disconnect();
+  }
+
+  if(last_dog>0 && millis() - last_dog > watchdog_time){
+    USE_SERIAL.printf("* watchdog *\n");
+    wsc.disconnect();
+    return;
+  }
+}
+
 // function for the user
 String SocketClient_defineDataToSend() {
   return "hello";
@@ -21,6 +45,7 @@ SocketClient::SocketClient() {
     Serial.println("Too many SocketClients created");
     exit(-1);
   }
+  isSSL = false;
   globalSC = this;
 
   defineDataToSend = SocketClient_defineDataToSend;
@@ -72,12 +97,15 @@ void SocketClient::getDataFromSocket(DynamicJsonDocument recievedDoc) {
 }
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
+  //- WebSocketsClient &wsc = globalSC->webSocket;
+  globalSC->last_dog = millis();
   switch (type) {
   case WStype_ERROR:
     USE_SERIAL.printf("[WSc] Error!! : %s\n", payload);
     break;
   case WStype_DISCONNECTED:
     USE_SERIAL.printf("[WSc] Disconnected!\n");
+    globalSC->last_dog = 0;
     break;
   case WStype_CONNECTED: 
     {

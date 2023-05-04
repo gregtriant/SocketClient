@@ -22,6 +22,7 @@
   #error Platform not supported
 #endif
 
+#include <timer.h>
 
 #define USE_SERIAL Serial
 
@@ -79,33 +80,37 @@ public:
   int totalLength;       //total size of firmware
   int currentLength = 0; //current size of written firmware
   
+  protected:
+  static void watchdog(void *v);
+  static unsigned long last_dog;
+  static const unsigned long tick_time = 6000;
+  static const unsigned long watchdog_time = (5*tick_time/2);
+  Timer timer;
+  public:
+
   // public methods
   SocketClient();
+  bool isSSL;
 
-  void init() {
-    // initial setup
-    // init mac address
-    String mac = WiFi.macAddress();
-    mac.toCharArray(macAddress, 50);
-    // init local IP
-    localIP = WiFi.localIP().toString();
-    webSocket.begin(socketHostURL, port, "/"); // server address, port and URL
-    webSocket.onEvent(SocketClient_webSocketEvent);   // initialte our event handler
-    // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
-    webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
+  void reconnect() { 
+    if(isSSL)
+      webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
+    else
+      webSocket.begin(socketHostURL, port, "/"); // server address, port and URL
   }
 
-  void initSSL() {
-    // initial setup
-    // init mac address
+  void init(bool _isSSL) {
+    isSSL = _isSSL;
+
     String mac = WiFi.macAddress();
     mac.toCharArray(macAddress, 50);
     // init local IP
     localIP = WiFi.localIP().toString();
-    webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
     webSocket.onEvent(SocketClient_webSocketEvent);   // initialte our event handler
     // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
     webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
+    reconnect();
+    timer.every(tick_time,watchdog,this);
   }
 
   void loop() {
