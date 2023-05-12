@@ -18,7 +18,7 @@ void SocketClient::watchdog(void *vv){
   if(wsc.sendPing()){
     USE_SERIAL.printf("*");    
   }else{
-    Serial.printf("* watchdog ping:disconnect *\n");
+    USE_SERIAL.printf("* watchdog ping:disconnect *\n");
     wsc.disconnect();
   }
 

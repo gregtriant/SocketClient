@@ -114,7 +114,7 @@ public:
     // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
     webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
     reconnect();
-    timer.every(tick_time,watchdog,this);
+    this->timer.every(tick_time,watchdog,this);
   }
 
   void loop() {
