@@ -18,11 +18,12 @@ void SocketClient::watchdog(void *vv){
   if(wsc.sendPing()){
     USE_SERIAL.printf("*");    
   }else{
+    Serial.printf("* watchdog ping:disconnect *\n");
     wsc.disconnect();
   }
 
   if(last_dog>0 && millis() - last_dog > watchdog_time){
-    USE_SERIAL.printf("* watchdog *\n");
+    USE_SERIAL.printf("* watchdog time *\n");
     wsc.disconnect();
     return;
   }
@@ -33,7 +34,7 @@ String SocketClient_defineDataToSend() {
   return "hello";
 }
 void SocketClient_recievedData(String data) {
-  Serial.println(data);
+  USE_SERIAL.println(data);
 }
 
 SocketClient *globalSC = NULL;

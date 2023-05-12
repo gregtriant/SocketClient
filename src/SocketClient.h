@@ -99,6 +99,10 @@ public:
       webSocket.begin(socketHostURL, port, "/"); // server address, port and URL
   }
 
+  void init(){
+    init(isSSL);
+  }
+
   void init(bool _isSSL) {
     isSSL = _isSSL;
 
@@ -124,9 +128,10 @@ public:
   void setDeviceType(const char * deviceType) {
     this->deviceType = deviceType;
   }
-  void setSocketHost(const char * socketHostURL, int port) {
+  void setSocketHost(const char * socketHostURL, int port, bool _isSSL) {
     this->socketHostURL = socketHostURL;
     this->port = port;
+    this->isSSL = _isSSL;
   }
   void setDataToSendFunciton(DataToSendFunction func) {
     this->defineDataToSend = func;
