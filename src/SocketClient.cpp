@@ -144,8 +144,10 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
   case WStype_FRAGMENT_FIN:
     break;
   case WStype_PING:
+    USE_SERIAL.printf(".");
     break;
   case WStype_PONG:
+    USE_SERIAL.printf("-");
     break;
   }
 }

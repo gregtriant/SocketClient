@@ -119,6 +119,7 @@ public:
 
   void loop() {
     this->webSocket.loop();
+    this->timer.update();
   }
   // setters
   void setAppAndVersion(const char * deviceApp, float version) {
