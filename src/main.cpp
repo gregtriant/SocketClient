@@ -1,8 +1,8 @@
 #include "SocketClient.h"
-#include "globals.h"
+//#include "globals.h"
 
-const char* ssid     = myssid;     // declared in globals.h        
-const char* password = mypassword; // declared in globals.h   
+const char* ssid     = "myssid";     // declared in globals.h        
+const char* password = "mypassword"; // declared in globals.h   
 
 SocketClient testClient;
 
@@ -34,13 +34,13 @@ void setup() {
 
 
   // test client
-  testClient.setSocketHost("sensordata.ddnsfree.com", 443);  //192.168.0.56
+  testClient.setSocketHost("sensordata.ddnsfree.com", 443, true);  //192.168.0.56
   testClient.setAppAndVersion("Development", 0.03);
-  testClient.setDeviceType("ESP8266");
+  //-testClient.setDeviceType("ESP8266");
   testClient.setDataToSendFunciton(defineDataToSend);
   testClient.setRecievedDataFunciton(recievedData);
   
-  testClient.initSSL(); // if you dont want ssl use .init and change the port.
+  testClient.init(); // if you dont want ssl use .init and change the port.
 }
 
 void loop() {
