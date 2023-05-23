@@ -68,6 +68,10 @@ protected:
   void getDataFromSocket(DynamicJsonDocument recievedDoc); // TODO
 
 public:
+  void sendDataWithSocket();    //- do the default (no receiverid)
+  bool isConnected() { return webSocket.isConnected(); }
+  void disconnect() { webSocket.disconnect(); }
+
   // OTA Functions // for esp8266
   void updatingMode(String updateURL);
   static void update_started();
@@ -80,7 +84,7 @@ public:
   int totalLength;       //total size of firmware
   int currentLength = 0; //current size of written firmware
   
-  protected:
+protected:
   static void watchdog(void *v);
   static unsigned long last_dog;
   static const unsigned long tick_time = 6000;
@@ -93,6 +97,9 @@ public:
   bool isSSL;
 
   void reconnect() { 
+    if(webSocket.isConnected())
+      webSocket.disconnect();
+
     if(isSSL)
       webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
     else

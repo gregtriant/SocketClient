@@ -10,7 +10,7 @@ void SocketClient::watchdog(void *vv){
   if(!sc)
     return;
   WebSocketsClient &wsc = sc->webSocket;
-    if(!wsc.isConnected()){
+  if(!wsc.isConnected()){
     USE_SERIAL.printf("* reconnect *\n");
     sc->reconnect();
     return;
@@ -46,7 +46,7 @@ SocketClient::SocketClient() {
     Serial.println("Too many SocketClients created");
     exit(-1);
   }
-  isSSL = false;
+  isSSL = true;
   globalSC = this;
 
   defineDataToSend = SocketClient_defineDataToSend;
@@ -71,6 +71,11 @@ void SocketClient::gotMessageSocket(uint8_t * payload) {
   if (strcmp(serverMessage, "getData") == 0) {
     getDataFromSocket(doc);
   }
+}
+
+void SocketClient::sendDataWithSocket(){
+  DynamicJsonDocument dummy(100);
+  sendDataWithSocket(dummy);
 }
 
 void SocketClient::sendDataWithSocket(DynamicJsonDocument recievedDoc) {
