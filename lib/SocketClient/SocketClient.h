@@ -22,7 +22,7 @@
   #error Platform not supported
 #endif
 
-#include <arduino-timer.h>
+#include <timer.h>
 
 #define USE_SERIAL Serial
 
@@ -85,11 +85,11 @@ public:
   int currentLength = 0; //current size of written firmware
   
 protected:
-  static bool watchdog(void *v);
+  static void watchdog(void *v);
   static unsigned long last_dog;
   static const unsigned long tick_time = 6000;
   static const unsigned long watchdog_time = (5*tick_time/2);
-  Timer<1> timer;
+  Timer timer;
   public:
 
   // public methods
@@ -126,7 +126,7 @@ protected:
 
   void loop() {
     this->webSocket.loop();
-    this->timer.tick();
+    this->timer.update();
   }
   // setters
   void setAppAndVersion(const char * deviceApp, float version) {

@@ -5,15 +5,15 @@
 #endif
 
 unsigned long SocketClient::last_dog = 0;
-bool SocketClient::watchdog(void *vv){
+void SocketClient::watchdog(void *vv){
   SocketClient *sc = (SocketClient*)vv;
   if(!sc)
-    return true;
+    return;
   WebSocketsClient &wsc = sc->webSocket;
   if(!wsc.isConnected()){
     USE_SERIAL.printf("* reconnect *\n");
     sc->reconnect();
-    return true;
+    return;
   }
   if(wsc.sendPing()){
     USE_SERIAL.printf("*");    
@@ -25,9 +25,8 @@ bool SocketClient::watchdog(void *vv){
   if(last_dog>0 && millis() - last_dog > watchdog_time){
     USE_SERIAL.printf("* watchdog time *\n");
     wsc.disconnect();
-    return true;
+    return;
   }
-  return true;
 }
 
 // function for the user
