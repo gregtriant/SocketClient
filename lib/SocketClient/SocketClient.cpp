@@ -18,8 +18,10 @@ bool SocketClient::watchdog(void *vv){
   if(wsc.sendPing()){
     USE_SERIAL.printf("*");    
   }else{
-    USE_SERIAL.printf("* watchdog ping:disconnect *\n");
-    wsc.disconnect();
+    // USE_SERIAL.printf("* watchdog ping:disconnect *\n");
+    // wsc.disconnect();
+    USE_SERIAL.printf("@");
+    //- let the watchdog take care...
   }
 
   if(last_dog>0 && millis() - last_dog > watchdog_time){
@@ -273,3 +275,29 @@ void SocketClient::updatingMode(String updateURL) {
   #endif
 }
 
+  void SocketClient::reconnect() { 
+    if(webSocket.isConnected())
+      webSocket.disconnect();
+
+    if(isSSL)
+      webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
+    else
+      webSocket.begin(socketHostURL, port, "/"); // server address, port and URL
+  }
+
+  void SocketClient::init(){
+     String mac = WiFi.macAddress();
+    mac.toCharArray(macAddress, 50);
+    // init local IP
+    localIP = WiFi.localIP().toString();
+    webSocket.onEvent(SocketClient_webSocketEvent);   // initialte our event handler
+    // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
+    webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
+    reconnect();
+    this->timer.every(tick_time,watchdog,this);
+  }
+
+  void SocketClient::loop() {
+    this->webSocket.loop();
+    this->timer.tick();
+  }

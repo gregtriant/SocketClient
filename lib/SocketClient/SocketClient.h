@@ -96,38 +96,15 @@ protected:
   SocketClient();
   bool isSSL;
 
-  void reconnect() { 
-    if(webSocket.isConnected())
-      webSocket.disconnect();
+  void reconnect();
 
-    if(isSSL)
-      webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
-    else
-      webSocket.begin(socketHostURL, port, "/"); // server address, port and URL
+  void init();
+  void init(const char * socketHostURL, int port, bool _isSSL){
+    setSocketHost(socketHostURL,port,_isSSL);
+    init();
   }
+  void loop();
 
-  void init(){
-    init(isSSL);
-  }
-
-  void init(bool _isSSL) {
-    isSSL = _isSSL;
-
-    String mac = WiFi.macAddress();
-    mac.toCharArray(macAddress, 50);
-    // init local IP
-    localIP = WiFi.localIP().toString();
-    webSocket.onEvent(SocketClient_webSocketEvent);   // initialte our event handler
-    // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
-    webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
-    reconnect();
-    this->timer.every(tick_time,watchdog,this);
-  }
-
-  void loop() {
-    this->webSocket.loop();
-    this->timer.tick();
-  }
   // setters
   void setAppAndVersion(const char * deviceApp, float version) {
     this->deviceApp = deviceApp;
