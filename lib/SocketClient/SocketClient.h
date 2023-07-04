@@ -26,8 +26,10 @@
 
 #define USE_SERIAL Serial
 
-typedef std::function<String()> DataToSendFunction;
-typedef std::function<void(String data)> RecievedDataFunction;
+typedef std::function<DynamicJsonDocument()> SendStatusFunction;
+typedef std::function<void(DynamicJsonDocument doc)> ReceivedCommandFunction;
+typedef std::function<void(DynamicJsonDocument doc)> EntityChangedFunction;
+
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
 
@@ -58,17 +60,19 @@ protected:
   #endif
 
   WebSocketsClient webSocket;
-  DataToSendFunction defineDataToSend;
-  RecievedDataFunction recievedData;
+  SendStatusFunction sendStatus;
+  ReceivedCommandFunction receivedCommand;
+  EntityChangedFunction entityChanged;
 
   // Sockets
   // void webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
   void gotMessageSocket(uint8_t * payload);
-  void sendDataWithSocket(DynamicJsonDocument doc);
-  void getDataFromSocket(DynamicJsonDocument recievedDoc); // TODO
+
+  // void sendStatusWithSocket(DynamicJsonDocument doc);
+  // void getDataFromSocket(DynamicJsonDocument receivedDoc); // TODO
 
 public:
-  void sendDataWithSocket();    //- do the default (no receiverid)
+  void sendStatusWithSocket(bool save=false);    //- do the default (no receiverid)
   bool isConnected() { return webSocket.isConnected(); }
   void disconnect() { webSocket.disconnect(); }
 
@@ -118,10 +122,13 @@ protected:
     this->port = port;
     this->isSSL = _isSSL;
   }
-  void setDataToSendFunciton(DataToSendFunction func) {
-    this->defineDataToSend = func;
+  void setSendStatusFunction(SendStatusFunction func) {
+    this->sendStatus = func;
   }
-  void setRecievedDataFunciton(RecievedDataFunction func) {
-    this->recievedData = func;
+  void setReceivedCommandFunction(ReceivedCommandFunction func) {
+    this->receivedCommand = func;
+  }
+  void setEntityChangedFunction(EntityChangedFunction func) {
+    this->entityChanged = func;
   }
 };

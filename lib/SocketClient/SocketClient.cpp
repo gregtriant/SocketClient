@@ -32,12 +32,23 @@ bool SocketClient::watchdog(void *vv){
   return true;
 }
 
-// function for the user
-String SocketClient_defineDataToSend() {
-  return "hello";
+// Initialize default functions for the user
+DynamicJsonDocument SocketClient_sendStatus() {
+  DynamicJsonDocument status(1024);
+  status["message"] = "hello";
+  return status;
 }
-void SocketClient_recievedData(String data) {
-  USE_SERIAL.println(data);
+
+void SocketClient_receivedCommand(DynamicJsonDocument doc) {
+  String stringData = "";
+  serializeJson(doc, stringData);
+  USE_SERIAL.println(stringData);
+}
+
+void SocketClient_entityChanged(DynamicJsonDocument doc) {
+  String stringData = "";
+  serializeJson(doc, stringData);
+  USE_SERIAL.println(stringData);
 }
 
 SocketClient *globalSC = NULL;
@@ -52,43 +63,40 @@ SocketClient::SocketClient() {
   isSSL = true;
   globalSC = this;
 
-  defineDataToSend = SocketClient_defineDataToSend;
-  recievedData = SocketClient_recievedData;
+  sendStatus = SocketClient_sendStatus;
+  receivedCommand = SocketClient_receivedCommand;
+  entityChanged = SocketClient_entityChanged;
 }
 
 void SocketClient::gotMessageSocket(uint8_t * payload) {
-  DynamicJsonDocument doc(300);
+  DynamicJsonDocument doc(500);
   USE_SERIAL.printf("[WSc] got data: %s\n", payload);
   deserializeJson(doc, payload);
-  const char* serverMessage = doc["message"];
-  // update
-  if (strcmp(serverMessage, "update") == 0) {
+ 
+  if (strcmp(doc["message"], "command") == 0) {
+    receivedCommand(doc);
+  }
+  else if (strcmp(doc["message"], "askStatus") == 0) {
+    sendStatusWithSocket();
+  }
+  else if (strcmp(doc["message"], "entityChanged") == 0) {
+    entityChanged(doc);
+  }
+  else if (strcmp(doc["message"], "update") == 0) {
     String updateURL = doc["url"];
     Serial.println(updateURL);
     updatingMode(updateURL);
   }
-
-  if (strcmp(serverMessage, "sendData") == 0) {
-    sendDataWithSocket(doc);
-  }
-  if (strcmp(serverMessage, "getData") == 0) {
-    getDataFromSocket(doc);
-  }
 }
 
-void SocketClient::sendDataWithSocket(){
-  DynamicJsonDocument dummy(100);
-  sendDataWithSocket(dummy);
-}
-
-void SocketClient::sendDataWithSocket(DynamicJsonDocument recievedDoc) {
+void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
   DynamicJsonDocument responseDoc(1024);
-  const char *recieverId = recievedDoc["recieverId"];
 
-  responseDoc["message"] = "returningData";
-  responseDoc["recieverId"] = recieverId;
-  String data = defineDataToSend(); // call user function to fill the JsonObject
+  responseDoc["message"] = "returningStatus";
+  DynamicJsonDocument data = sendStatus();
   responseDoc["data"] = data;
+  responseDoc["save"] = save;
+
 
   String JsonToSend = "";
   serializeJson(responseDoc, JsonToSend);
@@ -97,13 +105,13 @@ void SocketClient::sendDataWithSocket(DynamicJsonDocument recievedDoc) {
   webSocket.sendTXT(JsonToSend);
 }
 
-void SocketClient::getDataFromSocket(DynamicJsonDocument recievedDoc) {
-  String data = recievedDoc["data"];
-  recievedData(data);
+// void SocketClient::getDataFromSocket(DynamicJsonDocument recievedDoc) {
+  // String data = recievedDoc["data"];
+  // recievedData(data);
   //
   // TODO - maybe send ok response to server
   // 
-}
+// }
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   //- WebSocketsClient &wsc = globalSC->webSocket;

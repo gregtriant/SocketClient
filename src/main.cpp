@@ -5,16 +5,56 @@ const char* ssid     = "dobbielink";     // declared in globals.h
 const char* password = "2c26c57261f8"; // declared in globals.h   
 
 SocketClient testClient;
+String message = "hello";
+int count = 0;
+int led_state = 0;
+int slider = 0;
 
-String defineDataToSend() {
-  String stringToSend = "Hello from esp";
-  return stringToSend;
+void setLedState(int ledState) {
+  led_state = ledState;
+  digitalWrite(LED_BUILTIN, 1 - ledState);
+}
+void setSliderState(int sliderState) {
+  slider = sliderState;
 }
 
-void recievedData(String data) {
-  Serial.println(data);
-  // do something with the data
+DynamicJsonDocument sendStatus() {
+  DynamicJsonDocument status(1024);
+  status["message"] = message + String(count);
+  status["led"] = String(led_state);
+  status["slider"] = String(slider);
+
+  return status;
 }
+
+void receivedCommand(DynamicJsonDocument doc) {
+  // String stringData = "";
+  // serializeJson(doc, stringData);
+  // Serial.print("Command: ");
+  // Serial.println(stringData);
+  if (strcmp(doc["data"], "count") == 0) {
+    count++;
+    testClient.sendStatusWithSocket();
+  }
+}
+
+void entityChanged(DynamicJsonDocument doc) {
+  // String stringData = "";
+  // serializeJson(doc, stringData);
+  // Serial.print("Entity update: ");
+  // Serial.println(stringData);
+  if (strcmp(doc["entity"], "led") == 0) 
+  {
+    setLedState(atoi(doc["value"]));
+  } 
+  else if (strcmp(doc["entity"], "slider") == 0) 
+  {
+    setSliderState(doc["value"]);
+    testClient.sendStatusWithSocket();
+  }
+}
+
+
 
 void setup() {
   
@@ -32,13 +72,16 @@ void setup() {
   Serial.print("IP address:\t");
   Serial.println(WiFi.localIP()); 
 
+  pinMode(LED_BUILTIN, OUTPUT);
+  setLedState(led_state);
 
   // test client
-  testClient.setSocketHost("sensordata.ddnsfree.com", 443, true);  //192.168.0.56
+  testClient.setSocketHost("api.sensordata.space", 80, false);  //192.168.0.56
   testClient.setAppAndVersion("Development", 0.03);
   //-testClient.setDeviceType("ESP8266");
-  testClient.setDataToSendFunciton(defineDataToSend);
-  testClient.setRecievedDataFunciton(recievedData);
+  testClient.setSendStatusFunction(sendStatus);
+  testClient.setReceivedCommandFunction(receivedCommand);
+  testClient.setEntityChangedFunction(entityChanged);
   
   testClient.init(); // if you dont want ssl use .init and change the port.
 }
