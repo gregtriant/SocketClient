@@ -16,7 +16,8 @@ bool SocketClient::watchdog(void *vv){
     return true;
   }
   if(wsc.sendPing()){
-    USE_SERIAL.printf("*");    
+    USE_SERIAL.printf("*");
+    last_dog = millis();    
   }else{
     // USE_SERIAL.printf("* watchdog ping:disconnect *\n");
     // wsc.disconnect();
