@@ -1,8 +1,8 @@
 #include "SocketClient.h"
-//#include "globals.h"
+#include "globals.h"
 
-const char* ssid     = "dobbielink";     // declared in globals.h        
-const char* password = "2c26c57261f8"; // declared in globals.h   
+//const char* ssid     = "dobbielink";     // declared in globals.h        
+//const char* password = "###"; // declared in globals.h   
 
 SocketClient testClient;
 String message = "hello";
@@ -76,14 +76,14 @@ void setup() {
   setLedState(led_state);
 
   // test client
-  testClient.setSocketHost("api.sensordata.space", 80, false);  //192.168.0.56
-  testClient.setAppAndVersion("Development", 0.03);
+  // testClient.setSocketHost("api.sensordata.space", 80, false);  //192.168.0.56
+  testClient.setAppAndVersion("SocketClient", 0.12);
   //-testClient.setDeviceType("ESP8266");
   testClient.setSendStatusFunction(sendStatus);
   testClient.setReceivedCommandFunction(receivedCommand);
   testClient.setEntityChangedFunction(entityChanged);
   
-  testClient.init(); // if you dont want ssl use .init and change the port.
+  testClient.init("api.sensordata.space", 443, true); // if you dont want ssl use .init and change the port.
 }
 
 void loop() {
