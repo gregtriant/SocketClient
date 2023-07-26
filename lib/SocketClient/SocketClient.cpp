@@ -17,7 +17,7 @@ bool SocketClient::watchdog(void *vv){
   }
   if(wsc.sendPing()){
     USE_SERIAL.printf("*");
-    last_dog = millis();    
+    // last_dog = millis();    
   }else{
     // USE_SERIAL.printf("* watchdog ping:disconnect *\n");
     // wsc.disconnect();
@@ -162,9 +162,11 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
     break;
   case WStype_PING:
     USE_SERIAL.printf(".");
+    globalSC->last_dog = millis();
     break;
   case WStype_PONG:
     USE_SERIAL.printf("-");
+    globalSC->last_dog = millis();
     break;
   }
 }
