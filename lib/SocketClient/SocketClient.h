@@ -92,6 +92,9 @@ protected:
   static bool watchdog(void *v);
   static unsigned long last_dog;
   static const unsigned long tick_time = 6000;
+  static unsigned long last_reconnect;
+  static unsigned long reconnect_time;    //- 30 sec
+  static const unsigned long max_reconnect_time = 600000L; //- 10 min
   static const unsigned long watchdog_time = (5*tick_time/2);
   Timer<1> timer;
   public:

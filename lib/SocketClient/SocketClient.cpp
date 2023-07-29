@@ -5,24 +5,35 @@
 #endif
 
 unsigned long SocketClient::last_dog = 0;
+unsigned long SocketClient::last_reconnect = 0;
+unsigned long SocketClient::reconnect_time = 30000; //- 30 sec
 bool SocketClient::watchdog(void *vv){
   SocketClient *sc = (SocketClient*)vv;
   if(!sc)
     return true;
   WebSocketsClient &wsc = sc->webSocket;
-  if(!wsc.isConnected()){
+  if(!wsc.isConnected() && (last_reconnect==0 || (millis()-last_reconnect)>reconnect_time)){
+    unsigned int x = millis() / (60000);
+    USE_SERIAL.print(x);
     USE_SERIAL.printf("* reconnect *\n");
+    last_reconnect = millis();
+    reconnect_time += 60000;
+    if(reconnect_time>max_reconnect_time)
+      reconnect_time = max_reconnect_time;
     sc->reconnect();
     return true;
   }
-  if(wsc.sendPing()){
-    USE_SERIAL.printf("*");
-    // last_dog = millis();    
-  }else{
-    // USE_SERIAL.printf("* watchdog ping:disconnect *\n");
-    // wsc.disconnect();
-    USE_SERIAL.printf("@");
-    //- let the watchdog take care...
+  
+  if(wsc.isConnected()){
+    if(wsc.sendPing()){
+      USE_SERIAL.printf("*");
+      // last_dog = millis();    
+    }else{
+      // USE_SERIAL.printf("* watchdog ping:disconnect *\n");
+      // wsc.disconnect();
+      USE_SERIAL.printf("@");
+      //- let the watchdog take care...
+    }
   }
 
   if(last_dog>0 && millis() - last_dog > watchdog_time){
@@ -138,6 +149,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
       doc["localIP"] = globalSC->localIP;
       String JsonToSend = "";
       serializeJson(doc, JsonToSend);
+      globalSC->last_reconnect=0;
       globalSC->webSocket.sendTXT(JsonToSend);
     }
     break;
@@ -303,7 +315,7 @@ void SocketClient::updatingMode(String updateURL) {
     localIP = WiFi.localIP().toString();
     webSocket.onEvent(SocketClient_webSocketEvent);   // initialte our event handler
     // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
-    webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
+    // webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
     reconnect();
     this->timer.every(tick_time,watchdog,this);
   }
