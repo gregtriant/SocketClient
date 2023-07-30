@@ -6,10 +6,9 @@
 #if defined(ESP32) || defined(LIBRETUYA)
   #include <WiFi.h>
   #include <AsyncTCP.h>
-  #include <WiFi.h>
-  #include <WiFiMulti.h>
-  #include <WiFiClientSecure.h>
-  #include <WebSocketsClient.h>
+  // #include <WiFi.h>
+  // #include <WiFiMulti.h>
+  // #include <WiFiClientSecure.h>
   #include <HTTPClient.h>
   #include <Update.h>
 #elif defined(ESP8266)
@@ -29,7 +28,6 @@
 typedef std::function<DynamicJsonDocument()> SendStatusFunction;
 typedef std::function<void(DynamicJsonDocument doc)> ReceivedCommandFunction;
 typedef std::function<void(DynamicJsonDocument doc)> EntityChangedFunction;
-
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
 
@@ -53,11 +51,11 @@ protected:
 
   char macAddress[20];
   String localIP;
-  #if defined(ESP32) || defined(LIBRETUYA)
-  WiFiMulti wiFiMulti;
-  #elif defined(ESP8266)
-  ESP8266WiFiMulti wiFiMulti;
-  #endif
+  // #if defined(ESP32) || defined(LIBRETUYA)
+  // WiFiMulti wiFiMulti;
+  // #elif defined(ESP8266)
+  // ESP8266WiFiMulti wiFiMulti;
+  // #endif
 
   WebSocketsClient webSocket;
   SendStatusFunction sendStatus;
