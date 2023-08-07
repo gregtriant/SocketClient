@@ -1,14 +1,14 @@
 #pragma once
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <WiFiClientSecure.h>
 #include <WebSocketsClient.h>
-
+ 
 #if defined(ESP32) || defined(LIBRETUYA)
   #include <WiFi.h>
   #include <AsyncTCP.h>
   // #include <WiFi.h>
   // #include <WiFiMulti.h>
-  // #include <WiFiClientSecure.h>
   #include <HTTPClient.h>
   #include <Update.h>
 #elif defined(ESP8266)

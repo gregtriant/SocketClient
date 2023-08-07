@@ -150,6 +150,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
       String JsonToSend = "";
       serializeJson(doc, JsonToSend);
       globalSC->last_reconnect=0;
+      globalSC->reconnect_time=30000;
       globalSC->webSocket.sendTXT(JsonToSend);
     }
     break;
