@@ -5,6 +5,7 @@
 #endif
 
 unsigned long SocketClient::last_dog = 0;
+unsigned long SocketClient::last_png = 0;
 unsigned long SocketClient::last_reconnect = 0;
 unsigned long SocketClient::reconnect_time = 30000; //- 30 sec
 bool SocketClient::watchdog(void *vv){
@@ -38,6 +39,11 @@ bool SocketClient::watchdog(void *vv){
 
   if(last_dog>0 && millis() - last_dog > watchdog_time){
     USE_SERIAL.printf("* watchdog time *\n");
+    wsc.disconnect();
+    return true;
+  }
+  if(last_png>0 && millis() - last_png > watchdog_time){
+    USE_SERIAL.printf("* png watchdog time *\n");
     wsc.disconnect();
     return true;
   }
@@ -127,7 +133,6 @@ void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   //- WebSocketsClient &wsc = globalSC->webSocket;
-  globalSC->last_dog = millis();
   switch (type) {
   case WStype_ERROR:
     USE_SERIAL.printf("[WSc] Error!! : %s\n", payload);
@@ -135,9 +140,12 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
   case WStype_DISCONNECTED:
     USE_SERIAL.printf("[WSc] Disconnected!\n");
     globalSC->last_dog = 0;
+    globalSC->last_png = 0;
     break;
   case WStype_CONNECTED: 
     {
+      globalSC->last_dog = millis();
+      globalSC->last_png = millis();
       DynamicJsonDocument doc(1024);
       USE_SERIAL.printf("[WSc] Connected to url: %s\n", payload);
       // send message to server when Connected
@@ -156,10 +164,12 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
     break;
   case WStype_TEXT:
     {
+      globalSC->last_dog = millis();
       globalSC->gotMessageSocket(payload);
     }
     break;
   case WStype_BIN:
+    globalSC->last_dog = millis();
     USE_SERIAL.printf("[WSc] get binary length: %u\n", length);
     // hexdump(payload, length);
     // send data to server
@@ -175,7 +185,9 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
     break;
   case WStype_PING:
     USE_SERIAL.printf(".");
-    globalSC->last_dog = millis();
+    globalSC->last_png = millis();  //- got ping from server
+    //- globalSC->last_dog = millis();
+    //- care only of your own pongs...
     break;
   case WStype_PONG:
     USE_SERIAL.printf("-");

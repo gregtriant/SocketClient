@@ -89,6 +89,7 @@ public:
 protected:
   static bool watchdog(void *v);
   static unsigned long last_dog;
+  static unsigned long last_png;
   static const unsigned long tick_time = 6000;
   static unsigned long last_reconnect;
   static unsigned long reconnect_time;    //- 30 sec
