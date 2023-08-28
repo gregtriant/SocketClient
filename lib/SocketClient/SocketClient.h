@@ -21,13 +21,13 @@
   #error Platform not supported
 #endif
 
-#include <arduino-timer.h>
+//- notimer #include <arduino-timer.h>
 
 #define USE_SERIAL Serial
 
 typedef std::function<DynamicJsonDocument()> SendStatusFunction;
-typedef std::function<void(DynamicJsonDocument doc)> ReceivedCommandFunction;
-typedef std::function<void(DynamicJsonDocument doc)> EntityChangedFunction;
+typedef std::function<void(const DynamicJsonDocument &doc)> ReceivedCommandFunction;
+typedef std::function<void(const DynamicJsonDocument &doc)> EntityChangedFunction;
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
 
@@ -85,7 +85,7 @@ public:
   void updateFirmware(uint8_t *data, size_t len);
   int totalLength;       //total size of firmware
   int currentLength = 0; //current size of written firmware
-  
+
 protected:
   static bool watchdog(void *v);
   static unsigned long last_dog;
@@ -95,7 +95,7 @@ protected:
   static unsigned long reconnect_time;    //- 30 sec
   static const unsigned long max_reconnect_time = 600000L; //- 10 min
   static const unsigned long watchdog_time = (5*tick_time/2);
-  Timer<1> timer;
+  //- notimer Timer<1> timer;
   public:
 
   // public methods

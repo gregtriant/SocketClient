@@ -24,7 +24,7 @@ bool SocketClient::watchdog(void *vv){
     sc->reconnect();
     return true;
   }
-  
+
   if(wsc.isConnected()){
     if(wsc.sendPing()){
       USE_SERIAL.printf("*");
@@ -57,13 +57,13 @@ DynamicJsonDocument SocketClient_sendStatus() {
   return status;
 }
 
-void SocketClient_receivedCommand(DynamicJsonDocument doc) {
+void SocketClient_receivedCommand(const DynamicJsonDocument &doc) {
   String stringData = "";
   serializeJson(doc, stringData);
   USE_SERIAL.println(stringData);
 }
 
-void SocketClient_entityChanged(DynamicJsonDocument doc) {
+void SocketClient_entityChanged(const DynamicJsonDocument &doc) {
   String stringData = "";
   serializeJson(doc, stringData);
   USE_SERIAL.println(stringData);
@@ -146,7 +146,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
     {
       globalSC->last_dog = millis();
       globalSC->last_png = millis();
-      DynamicJsonDocument doc(1024);
+      StaticJsonDocument<512> doc;
       USE_SERIAL.printf("[WSc] Connected to url: %s\n", payload);
       // send message to server when Connected
       doc["message"] = "connect";
@@ -311,9 +311,14 @@ void SocketClient::updatingMode(String updateURL) {
   #endif
 }
 
-  void SocketClient::reconnect() { 
+void SocketClient::reconnect() { 
     if(webSocket.isConnected())
       webSocket.disconnect();
+
+    if(!WiFi.isConnected()){
+      USE_SERIAL.println("No WiFi.");
+      return;
+    }
 
     if(isSSL)
       webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
@@ -329,11 +334,12 @@ void SocketClient::updatingMode(String updateURL) {
     webSocket.onEvent(SocketClient_webSocketEvent);   // initialte our event handler
     // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
     webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
+    webSocket.enableHeartbeat(5000,12000,2);
     reconnect();
-    this->timer.every(tick_time,watchdog,this);
+    //- notimer this->timer.every(tick_time,watchdog,this);
   }
 
   void SocketClient::loop() {
     this->webSocket.loop();
-    this->timer.tick();
+    //- notimer this->timer.tick();
   }
