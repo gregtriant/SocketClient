@@ -108,13 +108,15 @@ void SocketClient::gotMessageSocket(uint8_t * payload) {
 }
 
 void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
+  if(!webSocket.isConnected())
+    return;
+
   DynamicJsonDocument responseDoc(1024);
 
   responseDoc["message"] = "returningStatus";
   DynamicJsonDocument data = sendStatus();
   responseDoc["data"] = data;
   responseDoc["save"] = save;
-
 
   String JsonToSend = "";
   serializeJson(responseDoc, JsonToSend);
