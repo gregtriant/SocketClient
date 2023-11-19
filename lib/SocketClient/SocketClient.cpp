@@ -51,19 +51,18 @@ bool SocketClient::watchdog(void *vv){
 }
 
 // Initialize default functions for the user
-DynamicJsonDocument SocketClient_sendStatus() {
-  DynamicJsonDocument status(1024);
+void SocketClient_sendStatus(JsonDoc& status) {
+  status.clear();
   status["message"] = "hello";
-  return status;
 }
 
-void SocketClient_receivedCommand(const DynamicJsonDocument &doc) {
+void SocketClient_receivedCommand(JsonDoc &doc) {
   String stringData = "";
   serializeJson(doc, stringData);
   USE_SERIAL.println(stringData);
 }
 
-void SocketClient_entityChanged(const DynamicJsonDocument &doc) {
+void SocketClient_entityChanged(JsonDoc &doc) {
   String stringData = "";
   serializeJson(doc, stringData);
   USE_SERIAL.println(stringData);
@@ -87,7 +86,7 @@ SocketClient::SocketClient() {
 }
 
 void SocketClient::gotMessageSocket(uint8_t * payload) {
-  DynamicJsonDocument doc(500);
+  JsonDoc doc;
   USE_SERIAL.printf("[WSc] got data: %s\n", payload);
   deserializeJson(doc, payload);
  
@@ -111,10 +110,11 @@ void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
   if(!webSocket.isConnected())
     return;
 
-  DynamicJsonDocument responseDoc(1024);
+  JsonDoc responseDoc;
 
   responseDoc["message"] = "returningStatus";
-  DynamicJsonDocument data = sendStatus();
+  JsonDoc data;
+  sendStatus(data);
   responseDoc["data"] = data;
   responseDoc["save"] = save;
 
@@ -321,6 +321,8 @@ void SocketClient::reconnect() {
       USE_SERIAL.println("No WiFi.");
       return;
     }
+
+    USE_SERIAL.println("SC <reconnect>");
 
     if(isSSL)
       webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL

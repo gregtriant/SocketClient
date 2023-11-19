@@ -18,16 +18,14 @@ void setSliderState(int sliderState) {
   slider = sliderState;
 }
 
-DynamicJsonDocument sendStatus() {
-  DynamicJsonDocument status(1024);
+void sendStatus(JsonDoc &status) {
+  status.clear();
   status["message"] = message + String(count);
   status["led"] = String(led_state);
   status["slider"] = String(slider);
-
-  return status;
 }
 
-void receivedCommand(DynamicJsonDocument doc) {
+void receivedCommand(JsonDoc &doc) {
   // String stringData = "";
   // serializeJson(doc, stringData);
   // Serial.print("Command: ");
@@ -38,7 +36,7 @@ void receivedCommand(DynamicJsonDocument doc) {
   }
 }
 
-void entityChanged(DynamicJsonDocument doc) {
+void entityChanged(JsonDoc &doc) {
   // String stringData = "";
   // serializeJson(doc, stringData);
   // Serial.print("Entity update: ");

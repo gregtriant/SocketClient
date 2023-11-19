@@ -25,9 +25,16 @@
 
 #define USE_SERIAL Serial
 
-typedef std::function<DynamicJsonDocument()> SendStatusFunction;
-typedef std::function<void(const DynamicJsonDocument &doc)> ReceivedCommandFunction;
-typedef std::function<void(const DynamicJsonDocument &doc)> EntityChangedFunction;
+class JsonDoc : public DynamicJsonDocument{
+public:
+  JsonDoc():DynamicJsonDocument(1024){
+    
+  }
+};
+
+typedef std::function<void(JsonDoc &doc)> SendStatusFunction;
+typedef std::function<void(JsonDoc &doc)> ReceivedCommandFunction;
+typedef std::function<void(JsonDoc &doc)> EntityChangedFunction;
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
 
