@@ -322,7 +322,7 @@ void SocketClient::reconnect() {
       return;
     }
 
-    USE_SERIAL.println("SC <reconnect>");
+    //- USE_SERIAL.println("SC <reconnect>");
 
     if(isSSL)
       webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
