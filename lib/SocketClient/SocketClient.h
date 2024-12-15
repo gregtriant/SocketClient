@@ -25,7 +25,7 @@
 
 #define USE_SERIAL Serial
 
-class JsonDoc : public StaticJsonDocument<256>{
+class JsonDoc : public StaticJsonDocument<512>{
 public:
   JsonDoc(){
   }

@@ -148,7 +148,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
     {
       globalSC->last_dog = millis();
       globalSC->last_png = millis();
-      StaticJsonDocument<512> doc;
+      JsonDoc doc;
       USE_SERIAL.printf("[WSc] Connected to url: %s\n", payload);
       // send message to server when Connected
       doc["message"] = "connect";
