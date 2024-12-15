@@ -25,10 +25,9 @@
 
 #define USE_SERIAL Serial
 
-class JsonDoc : public DynamicJsonDocument{
+class JsonDoc : public StaticJsonDocument<256>{
 public:
-  JsonDoc():DynamicJsonDocument(1024){
-    
+  JsonDoc(){
   }
 };
 
