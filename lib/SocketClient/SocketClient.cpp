@@ -157,6 +157,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
       doc["deviceType"] = globalSC->deviceType;
       doc["version"] = globalSC->version;
       doc["localIP"] = globalSC->localIP;
+      doc["token"] = globalSC->apiKey;
       String JsonToSend = "";
       serializeJson(doc, JsonToSend);
       globalSC->last_reconnect=0;

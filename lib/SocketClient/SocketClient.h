@@ -52,6 +52,7 @@ protected:
   "UNKNOWN";
   #endif
 
+  const char *apiKey = "";
   const char *socketHostURL = "sensordata.space";  // socket host  // change 192.168.0.87
   int port = 80; // socket port                    // change
 
@@ -138,5 +139,8 @@ protected:
   }
   void setEntityChangedFunction(EntityChangedFunction func) {
     this->entityChanged = func;
+  }
+  void setApiKey(const char * apiKey) {
+    this->apiKey = apiKey;
   }
 };
