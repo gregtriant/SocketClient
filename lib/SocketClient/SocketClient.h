@@ -33,6 +33,8 @@ public:
 typedef std::function<void(JsonDoc &doc)> SendStatusFunction;
 typedef std::function<void(JsonDoc &doc)> ReceivedCommandFunction;
 typedef std::function<void(JsonDoc &doc)> EntityChangedFunction;
+typedef std::function<void(JsonDoc &doc)> ConnectedFunction;
+
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
 
@@ -67,6 +69,7 @@ protected:
   SendStatusFunction sendStatus;
   ReceivedCommandFunction receivedCommand;
   EntityChangedFunction entityChanged;
+  ConnectedFunction connected;
 
   // Sockets
   // void webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
@@ -139,6 +142,11 @@ protected:
   void setEntityChangedFunction(EntityChangedFunction func) {
     this->entityChanged = func;
   }
+
+  void setConnectedFunction(ConnectedFunction func) {
+    this->connected = func;
+  }
+
   void setToken(const char * token) {
     this->token = token;
   }

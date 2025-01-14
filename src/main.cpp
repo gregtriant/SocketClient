@@ -1,8 +1,9 @@
 #include "SocketClient.h"
 #include "globals.h"
 
-//const char* ssid     = "dobbielink";     // declared in globals.h        
-//const char* password = "###"; // declared in globals.h   
+// const char* ssid     = "dobbielink"; // declared in globals.h        
+// const char* password = "#########";  // declared in globals.h   
+// const char* token = "xxxxxxxxxx";    // declared in globals.h   
 
 SocketClient testClient;
 String message = "hello";
@@ -76,14 +77,19 @@ void setup() {
   // test client
   // testClient.setSocketHost("api.sensordata.space", 80, false);  //192.168.0.56
   testClient.setAppAndVersion("SocketClient", 0.12);
+  testClient.setToken(token);
   //-testClient.setDeviceType("ESP8266");
   testClient.setSendStatusFunction(sendStatus);
   testClient.setReceivedCommandFunction(receivedCommand);
   testClient.setEntityChangedFunction(entityChanged);
+
+  testClient.setConnectedFunction([](JsonDoc &doc) {
+    Serial.println("Connected data:");
+    serializeJson(doc, Serial);
+  });
   
   testClient.init("api.sensordata.space", 443, true); // if you dont want ssl use .init and change the port.
 }
-
 void loop() {
   testClient.loop();
 }

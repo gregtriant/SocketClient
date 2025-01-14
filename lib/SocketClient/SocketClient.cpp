@@ -68,6 +68,12 @@ void SocketClient_entityChanged(JsonDoc &doc) {
   USE_SERIAL.println(stringData);
 }
 
+void SocketClient_connected(JsonDoc &doc) {
+  String stringData = "";
+  serializeJson(doc, stringData);
+  USE_SERIAL.println(stringData);
+}
+
 SocketClient *globalSC = NULL;
 
 SocketClient::SocketClient() {
@@ -83,14 +89,21 @@ SocketClient::SocketClient() {
   sendStatus = SocketClient_sendStatus;
   receivedCommand = SocketClient_receivedCommand;
   entityChanged = SocketClient_entityChanged;
+  connected = SocketClient_connected;
 }
 
 void SocketClient::gotMessageSocket(uint8_t * payload) {
   JsonDoc doc;
   USE_SERIAL.printf("[WSc] got data: %s\n", payload);
   deserializeJson(doc, payload);
- 
-  if (strcmp(doc["message"], "command") == 0) {
+  if (strcmp(doc["message"], "connected") == 0) {
+    if (doc.containsKey("data")) {
+      JsonDoc doc2;
+      deserializeJson(doc2, doc["data"]);
+      connected(doc2);
+    }
+  }
+  else if (strcmp(doc["message"], "command") == 0) {
     receivedCommand(doc);
   }
   else if (strcmp(doc["message"], "askStatus") == 0) {
