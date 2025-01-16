@@ -8,28 +8,34 @@ unsigned long SocketClient::last_dog = 0;
 unsigned long SocketClient::last_png = 0;
 unsigned long SocketClient::last_reconnect = 0;
 unsigned long SocketClient::reconnect_time = 30000; //- 30 sec
-bool SocketClient::watchdog(void *vv){
-  SocketClient *sc = (SocketClient*)vv;
-  if(!sc)
+bool SocketClient::watchdog(void *vv)
+{
+  SocketClient *sc = (SocketClient *)vv;
+  if (!sc)
     return true;
   WebSocketsClient &wsc = sc->webSocket;
-  if(!wsc.isConnected() && (last_reconnect==0 || (millis()-last_reconnect)>reconnect_time)){
+  if (!wsc.isConnected() && (last_reconnect == 0 || (millis() - last_reconnect) > reconnect_time))
+  {
     unsigned int x = millis() / (60000);
     USE_SERIAL.print(x);
     USE_SERIAL.printf("* reconnect *\n");
     last_reconnect = millis();
     reconnect_time += 60000;
-    if(reconnect_time>max_reconnect_time)
+    if (reconnect_time > max_reconnect_time)
       reconnect_time = max_reconnect_time;
     sc->reconnect();
     return true;
   }
 
-  if(wsc.isConnected()){
-    if(wsc.sendPing()){
+  if (wsc.isConnected())
+  {
+    if (wsc.sendPing())
+    {
       USE_SERIAL.printf("*");
-      // last_dog = millis();    
-    }else{
+      // last_dog = millis();
+    }
+    else
+    {
       // USE_SERIAL.printf("* watchdog ping:disconnect *\n");
       // wsc.disconnect();
       USE_SERIAL.printf("@");
@@ -37,12 +43,14 @@ bool SocketClient::watchdog(void *vv){
     }
   }
 
-  if(last_dog>0 && millis() - last_dog > watchdog_time){
+  if (last_dog > 0 && millis() - last_dog > watchdog_time)
+  {
     USE_SERIAL.printf("* watchdog time *\n");
     wsc.disconnect();
     return true;
   }
-  if(last_png>0 && millis() - last_png > watchdog_time){
+  if (last_png > 0 && millis() - last_png > watchdog_time)
+  {
     USE_SERIAL.printf("* png watchdog time *\n");
     wsc.disconnect();
     return true;
@@ -51,24 +59,28 @@ bool SocketClient::watchdog(void *vv){
 }
 
 // Initialize default functions for the user
-void SocketClient_sendStatus(JsonDoc& status) {
+void SocketClient_sendStatus(JsonDoc &status)
+{
   status.clear();
   status["message"] = "hello";
 }
 
-void SocketClient_receivedCommand(JsonDoc &doc) {
+void SocketClient_receivedCommand(JsonDoc &doc)
+{
   String stringData = "";
   serializeJson(doc, stringData);
   USE_SERIAL.println(stringData);
 }
 
-void SocketClient_entityChanged(JsonDoc &doc) {
+void SocketClient_entityChanged(JsonDoc &doc)
+{
   String stringData = "";
   serializeJson(doc, stringData);
   USE_SERIAL.println(stringData);
 }
 
-void SocketClient_connected(JsonDoc &doc) {
+void SocketClient_connected(JsonDoc &doc)
+{
   String stringData = "";
   serializeJson(doc, stringData);
   USE_SERIAL.println(stringData);
@@ -76,10 +88,12 @@ void SocketClient_connected(JsonDoc &doc) {
 
 SocketClient *globalSC = NULL;
 
-SocketClient::SocketClient() {
+SocketClient::SocketClient()
+{
   static int count = 0;
   count++;
-  if (count > 1) {
+  if (count > 1)
+  {
     Serial.println("Too many SocketClients created");
     exit(-1);
   }
@@ -92,35 +106,59 @@ SocketClient::SocketClient() {
   connected = SocketClient_connected;
 }
 
-void SocketClient::gotMessageSocket(uint8_t * payload) {
+void SocketClient::sendNotification(String method, JsonDoc &doc) {
+  if (!webSocket.isConnected())
+    return;
+
+  JsonDoc docToSend;
+  docToSend["message"] = "notification";
+  docToSend["method"] = method;
+  docToSend["data"] = doc;
+
+  String textToSend = "";
+  serializeJson(docToSend, textToSend);
+  Serial.println("Sending notification:");
+  Serial.println(textToSend);
+  webSocket.sendTXT(textToSend);
+}
+
+void SocketClient::gotMessageSocket(uint8_t *payload)
+{
   JsonDoc doc;
   USE_SERIAL.printf("[WSc] got data: %s\n", payload);
   deserializeJson(doc, payload);
-  if (strcmp(doc["message"], "connected") == 0) {
-    if (doc.containsKey("data")) {
+  if (strcmp(doc["message"], "connected") == 0)
+  {
+    if (doc.containsKey("data"))
+    {
       JsonDoc doc2;
       deserializeJson(doc2, doc["data"]);
       connected(doc2);
     }
   }
-  else if (strcmp(doc["message"], "command") == 0) {
+  else if (strcmp(doc["message"], "command") == 0)
+  {
     receivedCommand(doc);
   }
-  else if (strcmp(doc["message"], "askStatus") == 0) {
+  else if (strcmp(doc["message"], "askStatus") == 0)
+  {
     sendStatusWithSocket();
   }
-  else if (strcmp(doc["message"], "entityChanged") == 0) {
+  else if (strcmp(doc["message"], "entityChanged") == 0)
+  {
     entityChanged(doc);
   }
-  else if (strcmp(doc["message"], "update") == 0) {
+  else if (strcmp(doc["message"], "update") == 0)
+  {
     String updateURL = doc["url"];
     Serial.println(updateURL);
     updatingMode(updateURL);
   }
 }
 
-void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
-  if(!webSocket.isConnected())
+void SocketClient::sendStatusWithSocket(bool save /*=false*/)
+{
+  if (!webSocket.isConnected())
     return;
 
   JsonDoc responseDoc;
@@ -139,16 +177,18 @@ void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
 }
 
 // void SocketClient::getDataFromSocket(DynamicJsonDocument recievedDoc) {
-  // String data = recievedDoc["data"];
-  // recievedData(data);
-  //
-  // TODO - maybe send ok response to server
-  // 
+// String data = recievedDoc["data"];
+// recievedData(data);
+//
+// TODO - maybe send ok response to server
+//
 // }
 
-void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
+void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
+{
   //- WebSocketsClient &wsc = globalSC->webSocket;
-  switch (type) {
+  switch (type)
+  {
   case WStype_ERROR:
     USE_SERIAL.printf("[WSc] Error!! : %s\n", payload);
     break;
@@ -157,33 +197,33 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
     globalSC->last_dog = 0;
     globalSC->last_png = 0;
     break;
-  case WStype_CONNECTED: 
-    {
-      globalSC->last_dog = millis();
-      globalSC->last_png = millis();
-      JsonDoc doc;
-      USE_SERIAL.printf("[WSc] Connected to url: %s\n", payload);
-      // send message to server when Connected
-      doc["message"] = "connect";
-      doc["deviceId"] = globalSC->macAddress;
-      doc["deviceApp"] = globalSC->deviceApp;
-      doc["deviceType"] = globalSC->deviceType;
-      doc["version"] = globalSC->version;
-      doc["localIP"] = globalSC->localIP;
-      doc["token"] = globalSC->token;
-      String JsonToSend = "";
-      serializeJson(doc, JsonToSend);
-      globalSC->last_reconnect=0;
-      globalSC->reconnect_time=30000;
-      globalSC->webSocket.sendTXT(JsonToSend);
-    }
-    break;
+  case WStype_CONNECTED:
+  {
+    globalSC->last_dog = millis();
+    globalSC->last_png = millis();
+    JsonDoc doc;
+    USE_SERIAL.printf("[WSc] Connected to url: %s\n", payload);
+    // send message to server when Connected
+    doc["message"] = "connect";
+    doc["deviceId"] = globalSC->macAddress;
+    doc["deviceApp"] = globalSC->deviceApp;
+    doc["deviceType"] = globalSC->deviceType;
+    doc["version"] = globalSC->version;
+    doc["localIP"] = globalSC->localIP;
+    doc["token"] = globalSC->token;
+    String JsonToSend = "";
+    serializeJson(doc, JsonToSend);
+    globalSC->last_reconnect = 0;
+    globalSC->reconnect_time = 30000;
+    globalSC->webSocket.sendTXT(JsonToSend);
+  }
+  break;
   case WStype_TEXT:
-    {
-      globalSC->last_dog = millis();
-      globalSC->gotMessageSocket(payload);
-    }
-    break;
+  {
+    globalSC->last_dog = millis();
+    globalSC->gotMessageSocket(payload);
+  }
+  break;
   case WStype_BIN:
     globalSC->last_dog = millis();
     USE_SERIAL.printf("[WSc] get binary length: %u\n", length);
@@ -201,7 +241,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
     break;
   case WStype_PING:
     USE_SERIAL.printf(".");
-    globalSC->last_png = millis();  //- got ping from server
+    globalSC->last_png = millis(); //- got ping from server
     //- globalSC->last_dog = millis();
     //- care only of your own pongs...
     break;
@@ -212,65 +252,75 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t * payload, size_t length
   }
 }
 
-
 // --------------------------------------------------------  OTA functions  ----------------------------------------- //
-void SocketClient::update_started() {
+void SocketClient::update_started()
+{
   Serial.println("CALLBACK:  HTTP update process started");
 }
 
-void SocketClient::update_finished() {
+void SocketClient::update_finished()
+{
   Serial.println("CALLBACK:  HTTP update process finished");
 }
 
-void SocketClient::update_progress(int cur, int total) {
+void SocketClient::update_progress(int cur, int total)
+{
   Serial.printf("CALLBACK:  HTTP update process at %d of %d bytes...\n", cur, total);
 }
 
-void SocketClient::update_error(int err) {
+void SocketClient::update_error(int err)
+{
   Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
 }
 
 // for ESP32
 #if defined(ESP32) || defined(LIBRETUYA)
-void SocketClient::checkUpdate(String host) {
+void SocketClient::checkUpdate(String host)
+{
   HTTPClient client;
   // Connect to external web server
   // WiFiClient wificlient;
-  client.begin(host); //wificlient, 
+  client.begin(host); // wificlient,
   // Get file, just to check if each reachable
   int resp = client.GET();
   Serial.print("Response: ");
   Serial.println(resp);
   // If file is reachable, start downloading
-  if(resp == 200){
+  if (resp == 200)
+  {
     // get length of document (is -1 when Server sends no Content-Length header)
     totalLength = client.getSize();
     // transfer to local variable
     int len = totalLength;
     // this is required to start firmware update process
     Update.begin(UPDATE_SIZE_UNKNOWN);
-    Serial.printf("FW Size: %u\n",totalLength);
+    Serial.printf("FW Size: %u\n", totalLength);
     // create buffer for read
-    uint8_t buff[128] = { 0 };
+    uint8_t buff[128] = {0};
     // get tcp stream
-    WiFiClient * stream = client.getStreamPtr();
+    WiFiClient *stream = client.getStreamPtr();
     // read all data from server
     Serial.println("Updating firmware...");
-    while(client.connected() && (len > 0 || len == -1)) {
+    while (client.connected() && (len > 0 || len == -1))
+    {
       // get available data size
       size_t size = stream->available();
-      if(size) {
+      if (size)
+      {
         // read up to 128 byte
         int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
         // pass to function
         SocketClient::updateFirmware(buff, c);
-        if(len > 0) {
+        if (len > 0)
+        {
           len -= c;
         }
       }
       delay(1);
     }
-  } else {
+  }
+  else
+  {
     Serial.println("Cannot download firmware file. Only HTTP response 200: OK is supported. Double check firmware location #defined in HOST.");
   }
   client.end();
@@ -281,27 +331,31 @@ void SocketClient::checkUpdate(String host) {
 // Function to update firmware incrementally
 // Buffer is declared to be 128 so chunks of 128 bytes
 // from firmware is written to device until server closes
-void SocketClient::updateFirmware(uint8_t *data, size_t len){
+void SocketClient::updateFirmware(uint8_t *data, size_t len)
+{
   Update.write(data, len);
   currentLength += len;
   // Print dots while waiting for update to finish
   Serial.print('.');
   // if current length of written firmware is not equal to total firmware size, repeat
-  if(currentLength != totalLength) return;
+  if (currentLength != totalLength)
+    return;
   Update.end(true);
   Serial.printf("\nUpdate Success, Total Size: %u\nRebooting...\n", currentLength);
-  // Restart ESP32 to see changes 
+  // Restart ESP32 to see changes
   ESP.restart();
 }
 
-void SocketClient::updatingMode(String updateURL) {
-  
-  #if defined(ESP32) || defined(LIBRETUYA)
+void SocketClient::updatingMode(String updateURL)
+{
+
+#if defined(ESP32) || defined(LIBRETUYA)
   SocketClient::checkUpdate(updateURL);
 
-  #elif defined(ESP8266)
+#elif defined(ESP8266)
   // wait for WiFi connection
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED)
+  {
     WiFiClient client;
     ESPhttpUpdate.setLedPin(LED_BUILTIN, LOW);
     ESPhttpUpdate.onStart(SocketClient::update_started);
@@ -310,54 +364,59 @@ void SocketClient::updatingMode(String updateURL) {
     ESPhttpUpdate.onError(SocketClient::update_error);
 
     t_httpUpdate_return ret = ESPhttpUpdate.update(client, updateURL); // t_httpUpdate_return ret = ESPhttpUpdate.update(client, "server", 80, "file.bin");
-    switch (ret) {
-      case HTTP_UPDATE_FAILED:
-        Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
-        break;
+    switch (ret)
+    {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
+      break;
 
-      case HTTP_UPDATE_NO_UPDATES:
-        Serial.println("HTTP_UPDATE_NO_UPDATES");
-        break;
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("HTTP_UPDATE_NO_UPDATES");
+      break;
 
-      case HTTP_UPDATE_OK:
-        Serial.println("HTTP_UPDATE_OK");
-        break;
+    case HTTP_UPDATE_OK:
+      Serial.println("HTTP_UPDATE_OK");
+      break;
     }
   }
-  #endif
+#endif
 }
 
-void SocketClient::reconnect() { 
-    if(webSocket.isConnected())
-      webSocket.disconnect();
+void SocketClient::reconnect()
+{
+  if (webSocket.isConnected())
+    webSocket.disconnect();
 
-    if(!WiFi.isConnected()){
-      USE_SERIAL.println("No WiFi.");
-      return;
-    }
-
-    USE_SERIAL.println("SC <reconnect>");
-
-    if(isSSL)
-      webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
-    else
-      webSocket.begin(socketHostURL, port, "/"); // server address, port and URL
+  if (!WiFi.isConnected())
+  {
+    USE_SERIAL.println("No WiFi.");
+    return;
   }
 
-  void SocketClient::init(){
-     String mac = WiFi.macAddress();
-    mac.toCharArray(macAddress, 50);
-    // init local IP
-    localIP = WiFi.localIP().toString();
-    webSocket.onEvent(SocketClient_webSocketEvent);   // initialte our event handler
-    // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
-    webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
-    webSocket.enableHeartbeat(5000,12000,2);
-    reconnect();
-    //- notimer this->timer.every(tick_time,watchdog,this);
-  }
+  USE_SERIAL.println("SC <reconnect>");
 
-  void SocketClient::loop() {
-    this->webSocket.loop();
-    //- notimer this->timer.tick();
-  }
+  if (isSSL)
+    webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
+  else
+    webSocket.begin(socketHostURL, port, "/"); // server address, port and URL
+}
+
+void SocketClient::init()
+{
+  String mac = WiFi.macAddress();
+  mac.toCharArray(macAddress, 50);
+  // init local IP
+  localIP = WiFi.localIP().toString();
+  webSocket.onEvent(SocketClient_webSocketEvent); // initialte our event handler
+  // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
+  webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
+  webSocket.enableHeartbeat(5000, 12000, 2);
+  reconnect();
+  //- notimer this->timer.every(tick_time,watchdog,this);
+}
+
+void SocketClient::loop()
+{
+  this->webSocket.loop();
+  //- notimer this->timer.tick();
+}

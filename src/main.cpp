@@ -86,9 +86,22 @@ void setup() {
   testClient.setConnectedFunction([](JsonDoc &doc) {
     Serial.println("Connected data:");
     serializeJson(doc, Serial);
+    // do something with the connected data
+
+    // send connected notification
+    // for expo
+    doc.clear();
+    doc["title"] = "SocketClient";
+    doc["body"] = "Connected";
+    testClient.sendNotification("expo", doc);
+    // for Pushover:
+    // doc["title"] = "SocketClient";
+    // doc["message"] = "Connected";
+    // testClient.sendNotification("pushover", doc);
   });
   
   testClient.init("api.sensordata.space", 443, true); // if you dont want ssl use .init and change the port.
+  // testClient.init("192.168.1.81", 3030, false);
 }
 void loop() {
   testClient.loop();
