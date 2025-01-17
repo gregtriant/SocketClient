@@ -104,7 +104,7 @@ void setup()
     // doc["priority"] = ""; //optional
     // doc["sound"] = "cosmic"; //optional
     // doc["timestamp"] = ""; //optional
-    testClient.sendNotification("Connected!", doc);
+    testClient.sendNotification("Connected!");
   });
   testClient.init("api.sensordata.space", 443, true); // if you dont want ssl use .init and change the port.
   // testClient.init("192.168.1.81", 3030, false);

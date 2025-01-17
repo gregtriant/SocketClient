@@ -105,8 +105,22 @@ SocketClient::SocketClient()
   entityChanged = SocketClient_entityChanged;
   connected = SocketClient_connected;
 }
+void SocketClient::sendNotification(const String &message) {
+  if (!webSocket.isConnected())
+    return;
 
-void SocketClient::sendNotification(String message, JsonDoc &doc) {
+  JsonDoc docToSend;
+  docToSend["message"] = "notification";
+  docToSend["body"] = message;
+  
+  String textToSend = "";
+  serializeJson(docToSend, textToSend);
+  Serial.println("\nSending notification:");
+  Serial.println(textToSend);
+  webSocket.sendTXT(textToSend);
+}
+
+void SocketClient::sendNotification(const String &message, const JsonDoc &doc) {
   if (!webSocket.isConnected())
     return;
 
