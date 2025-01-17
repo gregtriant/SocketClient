@@ -117,7 +117,7 @@ void SocketClient::sendNotification(String message, JsonDoc &doc) {
 
   String textToSend = "";
   serializeJson(docToSend, textToSend);
-  Serial.println("Sending notification:");
+  Serial.println("\nSending notification:");
   Serial.println(textToSend);
   webSocket.sendTXT(textToSend);
 }

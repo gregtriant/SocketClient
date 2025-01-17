@@ -90,8 +90,9 @@ void setup()
   testClient.setEntityChangedFunction(entityChanged);
 
   testClient.setConnectedFunction([](JsonDoc &doc) {
-    Serial.println("Connected data:");
+    Serial.print("Connected data:  ");
     serializeJson(doc, Serial);
+    Serial.println();
     // do something with the connected data
 
     // send connected notification
