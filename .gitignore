@@ -2,3 +2,4 @@
 .pio/libdeps/
 src/globals.h
 .vscode/
+.vscode/extensions.json

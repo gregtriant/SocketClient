@@ -106,14 +106,14 @@ SocketClient::SocketClient()
   connected = SocketClient_connected;
 }
 
-void SocketClient::sendNotification(String method, JsonDoc &doc) {
+void SocketClient::sendNotification(String message, JsonDoc &doc) {
   if (!webSocket.isConnected())
     return;
 
   JsonDoc docToSend;
   docToSend["message"] = "notification";
-  docToSend["method"] = method;
-  docToSend["data"] = doc;
+  docToSend["body"] = message;
+  docToSend["options"] = doc;
 
   String textToSend = "";
   serializeJson(docToSend, textToSend);
