@@ -83,6 +83,7 @@ protected:
 
 public:
   void sendStatusWithSocket(bool save = false); //- do the default (no receiverid)
+  void sendLog(const String &message);
   void sendNotification(const String &message);
   void sendNotification(const String &message, const JsonDoc &data);
   bool isConnected() { return webSocket.isConnected(); }
