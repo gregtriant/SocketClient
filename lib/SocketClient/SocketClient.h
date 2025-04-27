@@ -11,14 +11,23 @@
 // #include <WiFiMulti.h>
 #include <HTTPClient.h>
 #include <Update.h>
+#include <Preferences.h>
+#include <WebServer.h>
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
-#include <ESP8266WiFi.h>
-#include <ESP8266WiFiMulti.h>
+// #include <ESP8266WiFiMulti.h>
 #include <ESP8266httpUpdate.h>
+#include <Preferences.h>
+#include <ESP8266WebServer.h>
 #else
 #error Platform not supported
 #endif
+
+
+#define RW_MODE false
+#define RO_MODE true
+
+
 
 //- notimer #include <arduino-timer.h>
 
@@ -56,16 +65,31 @@ protected:
       "UNKNOWN";
 #endif
 
+  int CONST_MODE_AP = 
+#if defined(ESP32) || defined(LIBRETUYA)
+  WIFI_MODE_AP;
+#elif defined(ESP8266)
+  WIFI_AP;
+#else
+#endif
+
+  Preferences _wifi_preferences;
   const char *token = "";
   const char *socketHostURL = "sensordata.space"; // socket host  // change 192.168.0.87
   int port = 80;                                  // socket port                    // change
 
-  char macAddress[20];
-  String localIP;
-  bool handleWifi = false;
-  String wifi_ssid;
-  String wifi_password;
+  char _macAddress[20];
+  String _localIP;
+  bool _handleWifi = false;
+  String _wifi_ssid;
+  String _wifi_password;
 
+  // server for recieving wifi commands
+#if defined(ESP32) || defined(LIBRETUYA)
+  WebServer _server;
+#elif defined(ESP8266)
+  ESP8266WebServer _server;
+#endif
   // #if defined(ESP32) || defined(LIBRETUYA)
   // WiFiMulti wiFiMulti;
   // #elif defined(ESP8266)
@@ -84,6 +108,12 @@ protected:
 
   // void sendStatusWithSocket(DynamicJsonDocument doc);
   // void getDataFromSocket(DynamicJsonDocument receivedDoc); // TODO
+  void _getWifiCredentialsFromNVS();
+  void _initAPMode();
+  void _setupWebServer();
+  void _handleRoot();
+  void _handleConnect();
+
 
 public:
   void sendStatusWithSocket(bool save = false); //- do the default (no receiverid)
@@ -123,6 +153,7 @@ public:
 
   void reconnect();
 
+  void initWifi();
   void initWifi(const char *ssid, const char *password);
   // void initWifi(const char *ssid, const char *password, int timeout = 0);
 

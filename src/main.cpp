@@ -14,7 +14,7 @@ int slider = 0;
 void setLedState(int ledState)
 {
   led_state = ledState;
-  digitalWrite(LED_BUILTIN, 1 - ledState);
+  // digitalWrite(LED_BUILTIN, 1 - ledState);
 }
 void setSliderState(int sliderState)
 {
@@ -66,18 +66,18 @@ void setup()
   delay(1000);
 
   // Connect to the network
-  WiFi.begin(ssid, password);
-  Serial.print("\nConnecting to ");
-  Serial.print(ssid);
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(1000);
-    Serial.print('.');
-  }
-  Serial.print("IP address:\t");
-  Serial.println(WiFi.localIP());
+  // WiFi.begin(ssid, password);
+  // Serial.print("\nConnecting to ");
+  // Serial.print(ssid);
+  // while (WiFi.status() != WL_CONNECTED)
+  // {
+  //   delay(1000);
+  //   Serial.print('.');
+  // }
+  // Serial.print("IP address:\t");
+  // Serial.println(WiFi.localIP());
 
-  pinMode(LED_BUILTIN, OUTPUT);
+  // pinMode(LED_BUILTIN, OUTPUT);
   setLedState(led_state);
 
   // test client
@@ -106,6 +106,7 @@ void setup()
     // doc["timestamp"] = ""; //optional
     testClient.sendNotification("Connected!");
   });
+  testClient.initWifi();
   testClient.init("api.sensordata.space", 443, true); // if you dont want ssl use .init and change the port.
   // testClient.init("192.168.1.81", 3030, false);
 }

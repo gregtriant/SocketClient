@@ -106,14 +106,15 @@ SocketClient::SocketClient()
   connected = SocketClient_connected;
 }
 
-void SocketClient::sendLog(const String &message) {
+void SocketClient::sendLog(const String &message)
+{
   if (!webSocket.isConnected())
     return;
 
   JsonDoc docToSend;
   docToSend["message"] = "@log";
   docToSend["text"] = message;
-  
+
   String textToSend = "";
   serializeJson(docToSend, textToSend);
   Serial.println("\nSending Log:");
@@ -121,14 +122,15 @@ void SocketClient::sendLog(const String &message) {
   webSocket.sendTXT(textToSend);
 }
 
-void SocketClient::sendNotification(const String &message) {
+void SocketClient::sendNotification(const String &message)
+{
   if (!webSocket.isConnected())
     return;
 
   JsonDoc docToSend;
   docToSend["message"] = "notification";
   docToSend["body"] = message;
-  
+
   String textToSend = "";
   serializeJson(docToSend, textToSend);
   Serial.println("\nSending notification:");
@@ -136,7 +138,8 @@ void SocketClient::sendNotification(const String &message) {
   webSocket.sendTXT(textToSend);
 }
 
-void SocketClient::sendNotification(const String &message, const JsonDoc &doc) {
+void SocketClient::sendNotification(const String &message, const JsonDoc &doc)
+{
   if (!webSocket.isConnected())
     return;
 
@@ -235,11 +238,11 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
     USE_SERIAL.printf("[WSc] Connected to url: %s\n", payload);
     // send message to server when Connected
     doc["message"] = "connect";
-    doc["deviceId"] = globalSC->macAddress;
+    doc["deviceId"] = globalSC->_macAddress;
     doc["deviceApp"] = globalSC->deviceApp;
     doc["deviceType"] = globalSC->deviceType;
     doc["version"] = globalSC->version;
-    doc["localIP"] = globalSC->localIP;
+    doc["localIP"] = globalSC->_localIP;
     doc["token"] = globalSC->token;
     String JsonToSend = "";
     serializeJson(doc, JsonToSend);
@@ -419,7 +422,7 @@ void SocketClient::reconnect()
 
   if (!WiFi.isConnected())
   {
-    USE_SERIAL.println("No WiFi.");
+    USE_SERIAL.println("SC <No WiFi>");
     return;
   }
 
@@ -434,48 +437,174 @@ void SocketClient::reconnect()
 void SocketClient::init()
 {
   String mac = WiFi.macAddress();
-  mac.toCharArray(macAddress, 50);
+  mac.toCharArray(_macAddress, 50);
   // init local IP
-  localIP = WiFi.localIP().toString();
+  _localIP = WiFi.localIP().toString();
   webSocket.onEvent(SocketClient_webSocketEvent); // initialte our event handler
   // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
-  webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
-  webSocket.enableHeartbeat(5000, 12000, 2);
-  reconnect();
+  if (!_handleWifi) { // if we are handling the wifi, the reconnect will get called after wifi connection
+    webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
+    webSocket.enableHeartbeat(5000, 12000, 2);
+    reconnect();
+  }
   //- notimer this->timer.every(tick_time,watchdog,this);
+}
+
+void SocketClient::_getWifiCredentialsFromNVS()
+{
+  // check preferences for wifi credentials
+  _wifi_preferences.begin("WIFIPrefs", RW_MODE); //  reopen it in RW mode.
+  if (true)
+  {
+    Serial.println("Initializing NVS for the first time.");
+    _wifi_preferences.putString("ssid", ""); // The SSID of the WiFi network.
+    _wifi_preferences.putString("pass", "");
+  }
+  
+  _wifi_preferences.begin("WIFIPrefs", RO_MODE);
+  _wifi_ssid = _wifi_preferences.getString("ssid");
+  _wifi_password = _wifi_preferences.getString("pass");
+  _wifi_preferences.end();
 }
 
 void SocketClient::initWifi(const char *ssid, const char *password)
 {
-  this->handleWifi = true;
-  this->wifi_ssid = String(ssid);
-  this->wifi_password = String(password);
+  _handleWifi = true;
+  _wifi_ssid = String(ssid);
+  _wifi_password = String(password);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
+  Serial.print("Connecting to WiFi ");
+  
+  int count = 0;
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(1000);
     Serial.print(".");
+    count++;
+    if (count >= 30) {
+      Serial.println("Failed to connect to WiFi. Returnning to AP mode.");
+      _initAPMode();
+      return;
+    }
   }
+
   Serial.print("Connected to ");
   Serial.print(ssid);
   Serial.print("!  IP address:  ");
   Serial.println(WiFi.localIP());
-  this->localIP = WiFi.localIP().toString();
+  _localIP = WiFi.localIP().toString();
+
+  // handle the websocket connection
+  webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
+  webSocket.enableHeartbeat(5000, 12000, 2);
+  this->reconnect();
+}
+
+void SocketClient::_handleRoot()
+{
+  _server.send(200, "text/html",
+    "<style>"
+    "label { display: inline-block; width: 80px; padding-bottom: 12px; }"
+    "</style>"
+    "<form action='/connect' method='POST'>"
+    "<label for='ssid'>SSID:</label>"
+    "<input type='text' id='ssid' name='ssid'><br>"
+    "<label for='password'>Password:</label>"
+    "<input type='password' id='password' name='password'><br>"
+    "<input type='submit' value='Connect'>"
+    "</form>");
+}
+
+void SocketClient::_handleConnect()
+{
+  String ssid = _server.arg("ssid");
+  String password = _server.arg("password");
+
+  if (ssid.length() > 0 && password.length() > 0)
+  {
+    _server.send(200, "text/plain", "Connecting to Wi-Fi...");
+    Serial.println("Received Wi-Fi credentials:");
+    Serial.println("SSID: " + ssid);
+    Serial.println("Password: " + password);
+
+    // Save credentials to NVS
+    _wifi_preferences.begin("WIFIPrefs", RW_MODE);
+    _wifi_preferences.putString("ssid", ssid);
+    _wifi_preferences.putString("pass", password);
+    _wifi_preferences.end();
+
+    // Disconnect AP mode and connect to Wi-Fi
+    WiFi.softAPdisconnect(true);
+    this->initWifi(ssid.c_str(), password.c_str());
+  }
+  else
+  {
+    _server.send(400, "text/plain", "Invalid SSID or Password");
+  }
+}
+
+void SocketClient::_setupWebServer()
+{
+  // Serve a simple HTML form
+  _server.on("/", HTTP_GET, [this]()
+             { this->_handleRoot(); });
+
+  // Handle form submission
+  _server.on("/connect", HTTP_POST, [this]()
+             { this->_handleConnect(); });
+}
+
+void SocketClient::_initAPMode() {
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP("ESP32-AP", "12345678"); // AP name and password
+  Serial.println("Starting AP mode...");
+  Serial.println(WiFi.softAPIP());
+  // Setup the web server
+  _setupWebServer();
+
+  // Start the server
+  _server.begin();
+  Serial.println("Web server started in AP mode");
+
+  // stop ws reconnect
+  webSocket.disconnect();
+  webSocket.enableHeartbeat(0, 0, 0); // disable heartbeat
+  webSocket.setReconnectInterval(0); // disable reconnect
+}
+
+void SocketClient::initWifi()
+{
+  _handleWifi = true;
+  _getWifiCredentialsFromNVS();
+  // check if we have credentials in NVS
+  if (_wifi_ssid.isEmpty() || _wifi_password.isEmpty())
+  {
+    Serial.println("No WiFi credentials found in NVS. Please set them.");
+    _initAPMode();
+    return;
+  }
+  else
+  {
+    Serial.println("WiFi credentials found in NVS.");
+    this->initWifi(_wifi_ssid.c_str(), _wifi_password.c_str());
+  }
 }
 
 void SocketClient::loop()
 {
-  this->webSocket.loop();
-
-  // Check wifi connection
-  if (this->handleWifi && WiFi.status() != WL_CONNECTED)
+  if (_handleWifi && WiFi.status() != WL_CONNECTED && WiFi.getMode() != CONST_MODE_AP)
   {
     Serial.print("WiFi not connected, trying to reconnect...");
-    // WiFi.reconnect();
-    this->initWifi(this->wifi_ssid.c_str(), this->wifi_password.c_str());
+    this->initWifi(_wifi_ssid.c_str(),_wifi_password.c_str());
     delay(1000);
   }
+  else if (_handleWifi && WiFi.getMode() == CONST_MODE_AP)
+  {
+    _server.handleClient();
+    return; // if in ap moode, do not handle ws
+  }
+
+  this->webSocket.loop();
   //- notimer this->timer.tick();
 }
