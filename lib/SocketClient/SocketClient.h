@@ -62,6 +62,10 @@ protected:
 
   char macAddress[20];
   String localIP;
+  bool handleWifi = false;
+  String wifi_ssid;
+  String wifi_password;
+
   // #if defined(ESP32) || defined(LIBRETUYA)
   // WiFiMulti wiFiMulti;
   // #elif defined(ESP8266)
@@ -110,6 +114,7 @@ protected:
   static unsigned long reconnect_time;                     //- 30 sec
   static const unsigned long max_reconnect_time = 600000L; //- 10 min
   static const unsigned long watchdog_time = (5 * tick_time / 2);
+
   //- notimer Timer<1> timer;
 public:
   // public methods
@@ -117,6 +122,9 @@ public:
   bool isSSL;
 
   void reconnect();
+
+  void initWifi(const char *ssid, const char *password);
+  // void initWifi(const char *ssid, const char *password, int timeout = 0);
 
   void init();
   void init(const char *socketHostURL, int port, bool _isSSL)

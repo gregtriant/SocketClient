@@ -445,8 +445,37 @@ void SocketClient::init()
   //- notimer this->timer.every(tick_time,watchdog,this);
 }
 
+void SocketClient::initWifi(const char *ssid, const char *password)
+{
+  this->handleWifi = true;
+  this->wifi_ssid = String(ssid);
+  this->wifi_password = String(password);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.print("Connected to ");
+  Serial.print(ssid);
+  Serial.print("!  IP address:  ");
+  Serial.println(WiFi.localIP());
+  this->localIP = WiFi.localIP().toString();
+}
+
 void SocketClient::loop()
 {
   this->webSocket.loop();
+
+  // Check wifi connection
+  if (this->handleWifi && WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print("WiFi not connected, trying to reconnect...");
+    // WiFi.reconnect();
+    this->initWifi(this->wifi_ssid.c_str(), this->wifi_password.c_str());
+    delay(1000);
+  }
   //- notimer this->timer.tick();
 }
