@@ -13,6 +13,7 @@
 #include <Update.h>
 #include <Preferences.h>
 #include <WebServer.h>
+#include <DNSServer.h>
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
 // #include <ESP8266WiFiMulti.h>
@@ -27,7 +28,9 @@
 #define RW_MODE false
 #define RO_MODE true
 
-
+#define LED_TIME_1 500  // AP mode
+#define LED_TIME_2 1000 // Wifi connecting mode
+const byte DNS_PORT = 53;
 
 //- notimer #include <arduino-timer.h>
 
@@ -83,10 +86,14 @@ protected:
   bool _handleWifi = false;
   String _wifi_ssid;
   String _wifi_password;
-
+  int _led_pin = -1; // led pin for indicating state
+  bool _led_state = false;
+  uint64_t _led_blink_time = 0; // led blink time
+  
   // server for recieving wifi commands
 #if defined(ESP32) || defined(LIBRETUYA)
   WebServer _server;
+  DNSServer _dnsServer;
 #elif defined(ESP8266)
   ESP8266WebServer _server;
 #endif
@@ -207,5 +214,22 @@ public:
   void setToken(const char *token)
   {
     this->token = token;
+  }
+
+  void setLedPin(int led_pin)
+  {
+    _led_pin = led_pin;
+    _led_state = false;
+    pinMode(_led_pin, OUTPUT);
+    digitalWrite(_led_pin, LOW); // turn off led
+  }
+
+  void setLedState(bool state)
+  {
+    _led_state = state;
+    if (_led_pin != -1)
+    {
+      digitalWrite(_led_pin, _led_state ? HIGH : LOW);
+    }
   }
 };

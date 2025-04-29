@@ -442,7 +442,8 @@ void SocketClient::init()
   _localIP = WiFi.localIP().toString();
   webSocket.onEvent(SocketClient_webSocketEvent); // initialte our event handler
   // webSocket.setAuthorization("user", "Password"); // use HTTP Basic Authorization this is optional remove if not needed
-  if (!_handleWifi) { // if we are handling the wifi, the reconnect will get called after wifi connection
+  if (!_handleWifi)
+  {                                       // if we are handling the wifi, the reconnect will get called after wifi connection
     webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
     webSocket.enableHeartbeat(5000, 12000, 2);
     reconnect();
@@ -460,7 +461,7 @@ void SocketClient::_getWifiCredentialsFromNVS()
     _wifi_preferences.putString("ssid", ""); // The SSID of the WiFi network.
     _wifi_preferences.putString("pass", "");
   }
-  
+
   _wifi_preferences.begin("WIFIPrefs", RO_MODE);
   _wifi_ssid = _wifi_preferences.getString("ssid");
   _wifi_password = _wifi_preferences.getString("pass");
@@ -475,14 +476,15 @@ void SocketClient::initWifi(const char *ssid, const char *password)
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi ");
-  
+
   int count = 0;
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(1000);
     Serial.print(".");
     count++;
-    if (count >= 30) {
+    if (count >= 15)
+    {
       Serial.println("Failed to connect to WiFi. Returnning to AP mode.");
       _initAPMode();
       return;
@@ -504,22 +506,26 @@ void SocketClient::initWifi(const char *ssid, const char *password)
 void SocketClient::_handleRoot()
 {
   _server.send(200, "text/html",
-    "<style>"
-    "label { display: inline-block; width: 80px; padding-bottom: 12px; }"
-    "</style>"
-    "<form action='/connect' method='POST'>"
-    "<label for='ssid'>SSID:</label>"
-    "<input type='text' id='ssid' name='ssid'><br>"
-    "<label for='password'>Password:</label>"
-    "<input type='password' id='password' name='password'><br>"
-    "<input type='submit' value='Connect'>"
-    "</form>");
+               "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'>"
+               "<style>*{box-sizing:border-box;margin:0;padding:0}html,body{font-family:Arial,sans-serif;height:100%;width:100%;background:#f2f2f2}body{display:flex;justify-content:center;align-items:center;padding:20px}form{width:100%;max-width:400px;padding:24px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1)}label{display:block;font-size:16px;font-weight:bold}input[type='text'],input[type='password']{width:100%;padding:12px;margin-bottom:16px;margin-top:5px;border:1px solid #ccc;border-radius:6px;font-size:16px}input[type='submit']{width:100%;padding:14px;background:#4CAF50;color:#fff;border:none;border-radius:6px;font-size:18px;cursor:pointer}input[type='submit']:hover{background:#45a049}.toggle{display:flex;align-items:center;gap:8px;margin-bottom:16px}@media(max-height:500px){body{align-items:flex-start;padding-top:40px}}</style>"
+               "<script>function togglePassword(){var p=document.getElementById('password');p.type=p.type==='password'?'text':'password';}</script>"
+               "</head><body>"
+               "<form action='/connect' method='POST'>"
+               "<label for='ssid'>SSID:</label>"
+               "<input type='text' id='ssid' name='ssid' placeholder='Enter WiFi SSID'>"
+               "<label for='password'>Password:</label>"
+               "<input type='password' id='password' name='password' placeholder='Enter WiFi Password'>"
+               "<div class='toggle'><input type='checkbox' id='show' onclick='togglePassword()'><label for='show'>Show Password</label></div>"
+               "<input type='submit' value='Connect'>"
+               "</form></body></html>");
 }
 
 void SocketClient::_handleConnect()
 {
   String ssid = _server.arg("ssid");
   String password = _server.arg("password");
+  ssid.trim();
+  password.trim();
 
   if (ssid.length() > 0 && password.length() > 0)
   {
@@ -553,24 +559,35 @@ void SocketClient::_setupWebServer()
   // Handle form submission
   _server.on("/connect", HTTP_POST, [this]()
              { this->_handleConnect(); });
+
+  // Serve the form for any URL
+  _server.onNotFound([this]()
+                     { this->_handleRoot(); });
 }
 
-void SocketClient::_initAPMode() {
-  WiFi.mode(WIFI_AP);
+void SocketClient::_initAPMode()
+{
+  // if in AP_STA mode make sure in same channel
+  IPAddress apIP(192, 168, 4, 1);
+  IPAddress subnet(255, 255, 255, 0);
+  WiFi.softAPConfig(apIP, apIP, subnet);
   WiFi.softAP("ESP32-AP", "12345678"); // AP name and password
-  Serial.println("Starting AP mode...");
+
+  Serial.print("Starting AP mode... ");
   Serial.println(WiFi.softAPIP());
-  // Setup the web server
-  _setupWebServer();
+
+  // Start the DNS server
+  _dnsServer.start(DNS_PORT, "*", apIP);
 
   // Start the server
+  _setupWebServer();
   _server.begin();
   Serial.println("Web server started in AP mode");
 
   // stop ws reconnect
   webSocket.disconnect();
-  webSocket.enableHeartbeat(0, 0, 0); // disable heartbeat
-  webSocket.setReconnectInterval(0); // disable reconnect
+  webSocket.enableHeartbeat(0, 0, 0);
+  webSocket.setReconnectInterval(0);
 }
 
 void SocketClient::initWifi()
@@ -593,16 +610,38 @@ void SocketClient::initWifi()
 
 void SocketClient::loop()
 {
-  if (_handleWifi && WiFi.status() != WL_CONNECTED && WiFi.getMode() != CONST_MODE_AP)
+  uint64_t now = millis();
+  if (_handleWifi && WiFi.status() != WL_CONNECTED && WiFi.getMode() != CONST_MODE_AP) // case connecting
   {
     Serial.print("WiFi not connected, trying to reconnect...");
-    this->initWifi(_wifi_ssid.c_str(),_wifi_password.c_str());
-    delay(1000);
+    this->initWifi(_wifi_ssid.c_str(), _wifi_password.c_str());
   }
-  else if (_handleWifi && WiFi.getMode() == CONST_MODE_AP)
+  else if (_handleWifi && WiFi.getMode() == CONST_MODE_AP) // case AP mode
   {
+    _dnsServer.processNextRequest();
     _server.handleClient();
+    if (_led_pin != -1 && now - _led_blink_time > LED_TIME_1)
+    {
+      _led_blink_time = now;
+      if (_led_state)
+      {
+        _led_state = false;
+      }
+      else
+      {
+        _led_state = true;
+      }
+      setLedState(_led_state);
+    }
     return; // if in ap moode, do not handle ws
+  }
+  else if (WiFi.status() == WL_CONNECTED && WiFi.getMode() != CONST_MODE_AP) // case all good!
+  {
+    if (_led_pin != -1)
+    {
+      _led_state = false;
+      setLedState(_led_state);
+    }
   }
 
   this->webSocket.loop();

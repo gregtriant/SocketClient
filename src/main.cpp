@@ -1,6 +1,7 @@
 #include "SocketClient.h"
 #include "globals.h"
 
+#define INTERNAL_LED 33
 // const char* ssid     = "dobbielink"; // declared in globals.h
 // const char* password = "#########";  // declared in globals.h
 // const char* token = "xxxxxxxxxx";    // declared in globals.h
@@ -65,6 +66,7 @@ void setup()
   Serial.begin(115200);
   delay(1000);
 
+  pinMode(INTERNAL_LED, OUTPUT);
   // Connect to the network
   // WiFi.begin(ssid, password);
   // Serial.print("\nConnecting to ");
@@ -106,11 +108,16 @@ void setup()
     // doc["timestamp"] = ""; //optional
     testClient.sendNotification("Connected!");
   });
-  testClient.initWifi();
+
+  // testClient.initWifi();
   testClient.init("api.sensordata.space", 443, true); // if you dont want ssl use .init and change the port.
   // testClient.init("192.168.1.81", 3030, false);
 }
 void loop()
 {
-  testClient.loop();
+  // testClient.loop();
+  digitalWrite(INTERNAL_LED, HIGH);
+  delay(1000);
+  digitalWrite(INTERNAL_LED, LOW);
+  delay(1000);
 }
