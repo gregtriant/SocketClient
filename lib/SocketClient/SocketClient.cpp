@@ -418,7 +418,9 @@ void SocketClient::updatingMode(String updateURL)
 void SocketClient::reconnect()
 {
   if (webSocket.isConnected())
+  {
     webSocket.disconnect();
+  }
 
   if (!WiFi.isConnected())
   {
@@ -428,10 +430,29 @@ void SocketClient::reconnect()
 
   USE_SERIAL.println("SC <reconnect>");
 
+  // Clean up any lingering resources
+  webSocket.~WebSocketsClient();       // Explicitly call the destructor
+  new (&webSocket) WebSocketsClient(); // Reconstruct the object in place
+
+  // Reinitialize the WebSocket connection
+  webSocket.onEvent(SocketClient_webSocketEvent); // Reattach the event handler
+  webSocket.setReconnectInterval(5000);           // Set reconnect interval
+  webSocket.enableHeartbeat(5000, 12000, 2);      // Enable heartbeat
+
+  // Attempt to reconnect
   if (isSSL)
-    webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
+  {
+    webSocket.beginSSL(socketHostURL, port, "/"); // Use SSL connection
+  }
   else
-    webSocket.begin(socketHostURL, port, "/"); // server address, port and URL
+  {
+    webSocket.begin(socketHostURL, port, "/"); // Use non-SSL connection
+  }
+
+  // if (isSSL)
+  //   webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
+  // else
+  //   webSocket.begin(socketHostURL, port, "/"); // server address, port and URL
 }
 
 void SocketClient::init()
@@ -471,28 +492,40 @@ void SocketClient::_getWifiCredentialsFromNVS()
 void SocketClient::initWifi(const char *ssid, const char *password)
 {
   _handleWifi = true;
+  _wifi_connecting = true;
   _wifi_ssid = String(ssid);
   _wifi_password = String(password);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi ");
 
-  int count = 0;
-  while (WiFi.status() != WL_CONNECTED)
+  // turn on the status LED
+  if (_led_pin != -1)
   {
-    delay(1000);
-    Serial.print(".");
-    count++;
-    if (count >= 15)
-    {
-      Serial.println("Failed to connect to WiFi. Returnning to AP mode.");
-      _initAPMode();
-      return;
-    }
+    _led_blink_time = millis();
+    _led_state = true;
+    setLedState(_led_state);
   }
 
+  // int count = 0;
+  // while (WiFi.status() != WL_CONNECTED)
+  // {
+  //   delay(1000);
+  //   Serial.print(".");
+  //   count++;
+  //   if (count >= 15)
+  //   {
+  //     Serial.println("Failed to connect to WiFi. Returnning to AP mode.");
+  //     _initAPMode();
+  //     return;
+  //   }
+  // }
+}
+
+void SocketClient::_wifiConnected()
+{
   Serial.print("Connected to ");
-  Serial.print(ssid);
+  Serial.print(_wifi_ssid);
   Serial.print("!  IP address:  ");
   Serial.println(WiFi.localIP());
   _localIP = WiFi.localIP().toString();
@@ -576,9 +609,6 @@ void SocketClient::_initAPMode()
   Serial.print("Starting AP mode... ");
   Serial.println(WiFi.softAPIP());
 
-  // Start the DNS server
-  _dnsServer.start(DNS_PORT, "*", apIP);
-
   // Start the server
   _setupWebServer();
   _server.begin();
@@ -613,12 +643,34 @@ void SocketClient::loop()
   uint64_t now = millis();
   if (_handleWifi && WiFi.status() != WL_CONNECTED && WiFi.getMode() != CONST_MODE_AP) // case connecting
   {
-    Serial.print("WiFi not connected, trying to reconnect...");
-    this->initWifi(_wifi_ssid.c_str(), _wifi_password.c_str());
+    // Serial.println("Here!");
+    // Serial.printf("now: %llu\n", now);
+    // Serial.printf("_led_blink_time: %llu\n", _led_blink_time);
+    // Serial.printf("diff: %llu\n", now - _led_blink_time);
+    // Serial.printf("wifi connecting: %d\n", _wifi_connecting);
+    if (!_wifi_connecting)
+    {
+      Serial.print("WiFi not connected, trying to reconnect...");
+      // init connection process
+      this->initWifi(_wifi_ssid.c_str(), _wifi_password.c_str());
+    }
+    else if (_wifi_connecting && now - _led_blink_time > LED_TIME_2)
+    {
+      Serial.print(".");
+      _led_blink_time = now;
+      if (_led_state)
+      {
+        _led_state = false;
+      }
+      else
+      {
+        _led_state = true;
+      }
+      setLedState(_led_state);
+    }
   }
   else if (_handleWifi && WiFi.getMode() == CONST_MODE_AP) // case AP mode
   {
-    _dnsServer.processNextRequest();
     _server.handleClient();
     if (_led_pin != -1 && now - _led_blink_time > LED_TIME_1)
     {
@@ -635,8 +687,10 @@ void SocketClient::loop()
     }
     return; // if in ap moode, do not handle ws
   }
-  else if (WiFi.status() == WL_CONNECTED && WiFi.getMode() != CONST_MODE_AP) // case all good!
+  else if (WiFi.status() == WL_CONNECTED && WiFi.getMode() != CONST_MODE_AP && _wifi_connecting) // case just conneted to wifi
   {
+    _wifiConnected();
+    _wifi_connecting = false;
     if (_led_pin != -1)
     {
       _led_state = false;

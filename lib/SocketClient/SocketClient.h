@@ -83,17 +83,18 @@ protected:
 
   char _macAddress[20];
   String _localIP;
+
   bool _handleWifi = false;
   String _wifi_ssid;
   String _wifi_password;
   int _led_pin = -1; // led pin for indicating state
+  bool _wifi_connecting = false;
   bool _led_state = false;
   uint64_t _led_blink_time = 0; // led blink time
   
   // server for recieving wifi commands
 #if defined(ESP32) || defined(LIBRETUYA)
   WebServer _server;
-  DNSServer _dnsServer;
 #elif defined(ESP8266)
   ESP8266WebServer _server;
 #endif
@@ -117,6 +118,7 @@ protected:
   // void getDataFromSocket(DynamicJsonDocument receivedDoc); // TODO
   void _getWifiCredentialsFromNVS();
   void _initAPMode();
+  void _wifiConnected();
   void _setupWebServer();
   void _handleRoot();
   void _handleConnect();
