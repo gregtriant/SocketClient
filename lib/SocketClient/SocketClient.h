@@ -30,6 +30,8 @@
 
 #define LED_TIME_1 500  // AP mode
 #define LED_TIME_2 1000 // Wifi connecting mode
+// max unsigned long value
+#define MAX_ULONG 4294967295UL
 const byte DNS_PORT = 53;
 
 //- notimer #include <arduino-timer.h>
@@ -73,7 +75,13 @@ protected:
   WIFI_MODE_AP;
 #elif defined(ESP8266)
   WIFI_AP;
-#else
+#endif
+
+  int CONST_MODE_STA = 
+#if defined(ESP32) || defined(LIBRETUYA)
+  WIFI_MODE_STA;
+#elif defined(ESP8266)
+  WIFI_STA;
 #endif
 
   Preferences _wifi_preferences;
@@ -91,7 +99,8 @@ protected:
   bool _wifi_connecting = false;
   bool _led_state = false;
   uint64_t _led_blink_time = 0; // led blink time
-  
+  uint32_t _connection_retries = 0;
+
   // server for recieving wifi commands
 #if defined(ESP32) || defined(LIBRETUYA)
   WebServer _server;
@@ -164,7 +173,6 @@ public:
 
   void initWifi();
   void initWifi(const char *ssid, const char *password);
-  // void initWifi(const char *ssid, const char *password, int timeout = 0);
 
   void init();
   void init(const char *socketHostURL, int port, bool _isSSL)
@@ -232,6 +240,20 @@ public:
     if (_led_pin != -1)
     {
       digitalWrite(_led_pin, _led_state ? HIGH : LOW);
+    }
+  }
+
+  void toggle_led_time(int now, int period, bool print_dot = false, bool count_retires = false) {
+    if (now - _led_blink_time > period && _led_pin != -1) {
+      if (count_retires) {
+        _connection_retries++;
+      }
+      if (print_dot) {
+        Serial.print(".");
+      }
+      _led_blink_time = now;
+      _led_state = 1 - _led_state;
+      setLedState(_led_state);
     }
   }
 };

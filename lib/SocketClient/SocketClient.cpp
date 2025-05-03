@@ -417,13 +417,11 @@ void SocketClient::updatingMode(String updateURL)
 
 void SocketClient::reconnect()
 {
-  if (webSocket.isConnected())
-  {
+  if (webSocket.isConnected()) {
     webSocket.disconnect();
   }
 
-  if (!WiFi.isConnected())
-  {
+  if (!WiFi.isConnected()) {
     USE_SERIAL.println("SC <No WiFi>");
     return;
   }
@@ -440,19 +438,11 @@ void SocketClient::reconnect()
   webSocket.enableHeartbeat(5000, 12000, 2);      // Enable heartbeat
 
   // Attempt to reconnect
-  if (isSSL)
-  {
+  if (isSSL) {
     webSocket.beginSSL(socketHostURL, port, "/"); // Use SSL connection
-  }
-  else
-  {
+  } else {
     webSocket.begin(socketHostURL, port, "/"); // Use non-SSL connection
   }
-
-  // if (isSSL)
-  //   webSocket.beginSSL(socketHostURL, port, "/"); // server address, port and URL
-  // else
-  //   webSocket.begin(socketHostURL, port, "/"); // server address, port and URL
 }
 
 void SocketClient::init()
@@ -493,33 +483,19 @@ void SocketClient::initWifi(const char *ssid, const char *password)
 {
   _handleWifi = true;
   _wifi_connecting = true;
+  _connection_retries = 0;
   _wifi_ssid = String(ssid);
   _wifi_password = String(password);
+  webSocket.setReconnectInterval(MAX_ULONG); // stop ws reconnect
+ 
+  Serial.println("Connecting to WiFi: " + _wifi_ssid);
+  WiFi.softAPdisconnect(true); // stop AP mode
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi ");
 
-  // turn on the status LED
-  if (_led_pin != -1)
-  {
-    _led_blink_time = millis();
-    _led_state = true;
-    setLedState(_led_state);
-  }
-
-  // int count = 0;
-  // while (WiFi.status() != WL_CONNECTED)
-  // {
-  //   delay(1000);
-  //   Serial.print(".");
-  //   count++;
-  //   if (count >= 15)
-  //   {
-  //     Serial.println("Failed to connect to WiFi. Returnning to AP mode.");
-  //     _initAPMode();
-  //     return;
-  //   }
-  // }
+  _led_blink_time = millis();
+  setLedState(true); // turn on led
 }
 
 void SocketClient::_wifiConnected()
@@ -529,7 +505,6 @@ void SocketClient::_wifiConnected()
   Serial.print("!  IP address:  ");
   Serial.println(WiFi.localIP());
   _localIP = WiFi.localIP().toString();
-
   // handle the websocket connection
   webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
   webSocket.enableHeartbeat(5000, 12000, 2);
@@ -573,8 +548,6 @@ void SocketClient::_handleConnect()
     _wifi_preferences.putString("pass", password);
     _wifi_preferences.end();
 
-    // Disconnect AP mode and connect to Wi-Fi
-    WiFi.softAPdisconnect(true);
     this->initWifi(ssid.c_str(), password.c_str());
   }
   else
@@ -594,12 +567,15 @@ void SocketClient::_setupWebServer()
              { this->_handleConnect(); });
 
   // Serve the form for any URL
-  _server.onNotFound([this]()
-                     { this->_handleRoot(); });
+  // _server.onNotFound([this]()
+  //                    { this->_handleRoot(); });
 }
 
 void SocketClient::_initAPMode()
 {
+  // stop STA mode
+  WiFi.disconnect(true);
+  // WiFi.mode(WIFI_AP); // set to AP mode
   // if in AP_STA mode make sure in same channel
   IPAddress apIP(192, 168, 4, 1);
   IPAddress subnet(255, 255, 255, 0);
@@ -615,9 +591,7 @@ void SocketClient::_initAPMode()
   Serial.println("Web server started in AP mode");
 
   // stop ws reconnect
-  webSocket.disconnect();
-  webSocket.enableHeartbeat(0, 0, 0);
-  webSocket.setReconnectInterval(0);
+  webSocket.setReconnectInterval(MAX_ULONG);
 }
 
 void SocketClient::initWifi()
@@ -640,64 +614,45 @@ void SocketClient::initWifi()
 
 void SocketClient::loop()
 {
-  uint64_t now = millis();
-  if (_handleWifi && WiFi.status() != WL_CONNECTED && WiFi.getMode() != CONST_MODE_AP) // case connecting
-  {
-    // Serial.println("Here!");
-    // Serial.printf("now: %llu\n", now);
-    // Serial.printf("_led_blink_time: %llu\n", _led_blink_time);
-    // Serial.printf("diff: %llu\n", now - _led_blink_time);
-    // Serial.printf("wifi connecting: %d\n", _wifi_connecting);
-    if (!_wifi_connecting)
-    {
-      Serial.print("WiFi not connected, trying to reconnect...");
-      // init connection process
-      this->initWifi(_wifi_ssid.c_str(), _wifi_password.c_str());
-    }
-    else if (_wifi_connecting && now - _led_blink_time > LED_TIME_2)
-    {
-      Serial.print(".");
-      _led_blink_time = now;
-      if (_led_state)
-      {
-        _led_state = false;
-      }
-      else
-      {
-        _led_state = true;
-      }
-      setLedState(_led_state);
-    }
+  // Wifi is not handled by the Sokcet Client library
+  if (!_handleWifi) {
+    this->webSocket.loop();
+    return;
   }
-  else if (_handleWifi && WiFi.getMode() == CONST_MODE_AP) // case AP mode
+
+  // Wifi Access Point mode
+  uint64_t now = millis();
+  wl_status_t wifiStatus = WiFi.status();
+  wifi_mode_t wifiMode = WiFi.getMode();
+  if (WiFi.getMode() == CONST_MODE_AP) // case AP mode
   {
     _server.handleClient();
-    if (_led_pin != -1 && now - _led_blink_time > LED_TIME_1)
-    {
-      _led_blink_time = now;
-      if (_led_state)
-      {
-        _led_state = false;
-      }
-      else
-      {
-        _led_state = true;
-      }
-      setLedState(_led_state);
-    }
+    toggle_led_time(now, LED_TIME_1, false, false);
     return; // if in ap moode, do not handle ws
   }
-  else if (WiFi.status() == WL_CONNECTED && WiFi.getMode() != CONST_MODE_AP && _wifi_connecting) // case just conneted to wifi
+
+  // Wifi STA mode
+  if (wifiStatus != WL_CONNECTED && wifiMode == CONST_MODE_STA) // Not connected to wifi
   {
-    _wifiConnected();
-    _wifi_connecting = false;
-    if (_led_pin != -1)
+    if (_wifi_connecting)
     {
-      _led_state = false;
-      setLedState(_led_state);
+      toggle_led_time(now, LED_TIME_2, true, true);
+      if (_connection_retries > 20)
+      {
+        Serial.println("Failed to connect to WiFi. Returning to AP mode.");
+        _initAPMode();
+      }
+      return;
+    } else {
+      this->initWifi(_wifi_ssid.c_str(), _wifi_password.c_str());
     }
+  }
+  else if (wifiStatus == WL_CONNECTED && wifiMode == CONST_MODE_STA && _wifi_connecting) // Just conneted to wifi
+  {
+    _wifi_connecting = false;
+    _wifiConnected();
+    setLedState(false);
   }
 
   this->webSocket.loop();
-  //- notimer this->timer.tick();
 }
