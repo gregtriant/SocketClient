@@ -98,6 +98,9 @@ void setup()
     testClient.sendNotification("Connected!");
     testClient.sendStatusWithSocket(true);
   });
+
+  testClient.initWifi();
+  testClient.setLedPin(LED_BUILTIN);
   testClient.init("api.sensordata.space", 443, true); // if you dont want ssl use .init and change the port.
   
   
