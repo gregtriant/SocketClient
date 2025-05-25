@@ -66,10 +66,39 @@ void entityChanged(JsonDoc &doc)
   }
 }
 
+void connectedFunction(JsonDoc &doc)
+{
+  Serial.print("Connected data:  ");
+  serializeJson(doc, Serial);
+  Serial.println();
+  // do something with the connected data
+
+  // send connected notification
+  doc.clear();
+  testClient.sendNotification("Connected!");
+  testClient.sendStatusWithSocket(true);
+}
+
 bool sendStatusNow(void* context) {
   testClient.sendStatusWithSocket(true);
   return true; // return true to keep the timer running
 }
+
+// socket client config
+SocketClientConfig socketClientConfig = {
+	.name = "Solar",
+	.version = VERSION,
+	.type = "ESP32",
+  .ledPin = LED_PIN, // set the led pin to blink when connected
+	.host = "api.sensordata.space",
+	.port = 443, // 3030,
+	.isSSL = true, // true for SSL, false for non-SSL
+	.token = token, // from globals.h
+	.sendStatus = sendStatus,
+	.receivedCommand = receivedCommand,
+	.entityChanged = entityChanged,
+	.connected = connectedFunction,
+};
 
 void setup()
 {
@@ -77,30 +106,8 @@ void setup()
   Serial.begin(115200);
   delay(1000);
 
-
   testClient.initWifi();
-  testClient.setLedPin(LED_PIN); // set the led pin to blink when connected
-
-  testClient.setAppAndVersion("Solar", VERSION);
-  testClient.setToken(token);
-  testClient.setSendStatusFunction(sendStatus);
-  testClient.setReceivedCommandFunction(receivedCommand);
-  testClient.setEntityChangedFunction(entityChanged);
-
-  testClient.setConnectedFunction([](JsonDoc &doc) {
-    Serial.print("Connected data:  ");
-    serializeJson(doc, Serial);
-    Serial.println();
-    // do something with the connected data
-
-    // send connected notification
-    doc.clear();
-    testClient.sendNotification("Connected!");
-    testClient.sendStatusWithSocket(true);
-  });
-  testClient.init("api.sensordata.space", 443, true); // if you dont want ssl use .init and change the port.
-  
-  
+  testClient.init(&socketClientConfig); // if you dont want ssl use .init and change the port.
   dht.begin();
   send_data_timer.every(5*60*1000, sendStatusNow, nullptr);
 }
