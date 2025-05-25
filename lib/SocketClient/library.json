@@ -1,0 +1,25 @@
+{
+    "authors": [
+        {
+            "maintainer": true,
+            "name": "GregTriant",
+            "url": "https://github.com/gregtriant/socketclient"
+        }
+    ],
+    "description": "WebSocket client for SensorData",
+    "export": {
+        "exclude": [
+            "tests"
+        ]
+    },
+    "frameworks": "arduino",
+    "keywords": "wifi, http, web, server, client, websocket",
+    "license": "MIT",
+    "name": "SocketClient",
+    "platforms": "espressif8266, espressif32",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/gregtriant/socketclient.git"
+    },
+    "version": "1.2.0"
+}
