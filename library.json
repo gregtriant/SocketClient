@@ -1,0 +1,60 @@
+{
+    "version": "1.2.0",
+    "name": "SocketClient",
+    "description": "WebSocket client for SensorData",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/gregtriant/SocketClient.git"
+    },
+    "authors": [
+        {
+            "maintainer": true,
+            "name": "GregTriant",
+            "url": "https://github.com/gregtriant"
+        }
+    ],
+    "export": {
+        "exclude": [
+            "tests"
+        ]
+    },
+    "frameworks": "arduino",
+    "keywords": "wifi, http, web, server, client, websocket",
+    "license": "MIT",
+    "platforms": [
+        "espressif8266",
+        "espressif32"
+    ],
+    "dependencies" : [
+        { 
+            "name": "bblanchon/ArduinoJson",
+            "owner": "Benoit Blanchon", 
+            "version" : "^7.4.1",
+            "platforms": [ "espressif32", "espressif8266" ]
+        },
+        { 
+            "name": "esphome/ESPAsyncWebServer-esphome",
+            "owner": "ESPHome", 
+            "version" : "^3.3.0",
+            "platforms": [ "espressif32", "espressif8266" ]
+        },
+        {
+            "name": "links2004/WebSockets",
+            "owner": "Markus",
+            "version": "^2.6.1",
+            "platforms": [ "espressif32", "espressif8266" ]
+        },
+        {
+            "name": "contrem/arduino-timer",
+            "owner": "Michael Contreras",
+            "version": "^3.0.1",
+            "platforms": [ "espressif32", "espressif8266" ]
+        },
+        {
+            "name": "vshymanskyy/Preferences",
+            "owner": "Volodymyr Shymanskyy",
+            "version": "^2.1.0",
+            "platforms": [ "espressif8266" ]
+        }
+    ]
+}
