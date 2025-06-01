@@ -25,36 +25,10 @@
         "espressif8266",
         "espressif32"
     ],
-    "dependencies" : [
-        { 
-            "name": "bblanchon/ArduinoJson",
-            "owner": "Benoit Blanchon", 
-            "version" : "^7.4.1",
-            "platforms": [ "espressif32", "espressif8266" ]
-        },
-        { 
-            "name": "esphome/ESPAsyncWebServer-esphome",
-            "owner": "ESPHome", 
-            "version" : "^3.3.0",
-            "platforms": [ "espressif32", "espressif8266" ]
-        },
-        {
-            "name": "links2004/WebSockets",
-            "owner": "Markus",
-            "version": "^2.6.1",
-            "platforms": [ "espressif32", "espressif8266" ]
-        },
-        {
-            "name": "contrem/arduino-timer",
-            "owner": "Michael Contreras",
-            "version": "^3.0.1",
-            "platforms": [ "espressif32", "espressif8266" ]
-        },
-        {
-            "name": "vshymanskyy/Preferences",
-            "owner": "Volodymyr Shymanskyy",
-            "version": "^2.1.0",
-            "platforms": [ "espressif8266" ]
-        }
+    "dependencies": [
+        "links2004/WebSockets@^2.6.1",
+        "bblanchon/ArduinoJson@^7.4.1",
+        "esphome/ESPAsyncWebServer-esphome@^3.3.0",
+        "contrem/arduino-timer@^3.0.1"
     ]
 }
