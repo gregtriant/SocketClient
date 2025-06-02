@@ -1,7 +1,7 @@
 {
-    "version": "1.2.2",
+    "version": "1.2.3",
     "name": "SocketClient",
-    "description": "WebSocket client for SensorData",
+    "description": "WebSocket client for Sensordata.space",
     "repository": {
         "type": "git",
         "url": "https://github.com/gregtriant/SocketClient.git"
