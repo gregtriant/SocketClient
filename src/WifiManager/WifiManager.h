@@ -56,5 +56,11 @@ public:
     String getIP();
     String getMacAddress();
 
+    void saveWifiCredentials(String ssid, String password) {
+        _wifi_ssid = ssid;
+        _wifi_password = password;
+        _nvsManager->saveWifiCredentials(ssid, password);
+    }
+
     // void setInternetRestoredCallback(std::function<void()> cb) { _onInternetRestored = cb; }
 };

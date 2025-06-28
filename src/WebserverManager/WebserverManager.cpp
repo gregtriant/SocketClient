@@ -1,6 +1,10 @@
 #include "WebserverManager.h"
 
+WebserverManager::WebserverManager(WifiManager *wifiManager)
+{
+  _wifiManager = wifiManager;
 
+}
 
 
 void WebserverManager::_setupWebServer()
@@ -11,7 +15,7 @@ void WebserverManager::_setupWebServer()
 
   // Handle form submission
   _server.on("/connect", HTTP_POST, [this]()
-             { this->_handleConnect(); });
+             { this->_handleWifiConnect(); });
 
   _server.on("/leave-wifi", HTTP_GET, [this]()
              {
@@ -64,7 +68,7 @@ void WebserverManager::_handleRoot()
                "</form></body></html>");
 }
 
-void WebserverManager::_handleConnect()
+void WebserverManager::_handleWifiConnect()
 {
   String ssid = _server.arg("ssid");
   String password = _server.arg("password");
@@ -78,10 +82,8 @@ void WebserverManager::_handleConnect()
     Serial.println("SSID: " + ssid);
     Serial.println("Password: " + password);
 
-    // Save credentials to NVS
-    // _wifiManager.saveWifiCredentials(ssid, password);
-
-    // this->initWifi(ssid.c_str(), password.c_str());
+    _wifiManager->saveWifiCredentials(ssid, password);
+    _wifiManager->init();
   }
   else
   {

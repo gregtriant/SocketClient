@@ -28,15 +28,18 @@ class WebserverManager
 {
 
 protected:
-    WifiManager _wifiManager;
+    WifiManager *_wifiManager;
     WebServer _server;
     bool _isActive = false;
 
     void _setupWebServer();
     void _handleRoot();
-    void _handleConnect();
+    void _handleWifiConnect();
+    void _handleWifiLeave();
+    void _handleWifiScan();
 
 public:
+    WebserverManager(WifiManager *wifiManager);
     void start();
     void stop();
 
