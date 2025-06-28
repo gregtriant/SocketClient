@@ -8,8 +8,6 @@
 #if defined(ESP32) || defined(LIBRETUYA)
 #include <WiFi.h>
 #include <AsyncTCP.h>
-// #include <WiFi.h>
-// #include <WiFiMulti.h>
 #include <HTTPClient.h>
 #include <Update.h>
 #include <Preferences.h>
@@ -17,7 +15,6 @@
 #include <DNSServer.h>
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
-// #include <ESP8266WiFiMulti.h>
 #include <ESP8266httpUpdate.h>
 #include <Preferences.h>
 #include <ESP8266WebServer.h>
@@ -25,6 +22,8 @@
 #error Platform not supported
 #endif
 
+#include "NVS/NVSManager.h"
+#include "WifiManager/WifiManager.h"
 
 /**
  * @brief Configuration structure for the SocketClient.
@@ -37,12 +36,13 @@ typedef struct {
   const float version;    // version of the app
   const char *type;       // type of the device (e.g. ESP32, ESP8266)
   const int ledPin;       // pin for the LED (optional, can be -1 if not used)
-  
+
   /* server settings */
   const char *host;       // host of the socket server
   const int port;         // port of the socket server
   const bool isSSL;       // is the socket server using SSL
   const char *token;      // token for authentication
+  const bool handleWifi;  // the socket client will handle wifi connection
 
   /* functions */
   void (*sendStatus)(JsonDoc &doc);      // function to send status
@@ -54,40 +54,43 @@ typedef struct {
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
 
+/**
+ * @brief The SocketClient class provides functionality for connecting to a socket server
+ */
 class SocketClient
 {
   friend void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
 
 protected:
+  NVSManager *_nvsManager;
+  WifiManager *_wifiManager;
+
   // data
-  float version = 0.2; // change
-  const char *deviceApp = "Test1";
-  const char *deviceType =
-#if defined(ESP32) || defined(LIBRETUYA)
-      "ESP32";
-#elif defined(ESP8266)
-      "ESP8266";
-#else
-      "UNKNOWN";
-#endif
+  float _version = 0.2; // change
+  const char *_deviceApp = DEFAULT_APP_NAME;
+  const char *_deviceType = DEVICE_TYPE;
 
-  Preferences _wifi_preferences;
-  const char *token = "";
-  const char *socketHostURL = "sensordata.space"; // socket host  // change 192.168.0.87
-  int port = 80;                                  // socket port                    // change
+  
+  const char *_token = "";
+  const char *_socketHostURL = DEFAULT_HOST;
+  int _port = DEFAULT_PORT;
+  bool _isSSL;
 
-  char _macAddress[20];
+  // char _macAddress[20];
+  String _macAddress;
   String _localIP;
 
   bool _handleWifi = false;
-  String _wifi_ssid;
-  String _wifi_password;
-  int _led_pin = -1; // led pin for indicating state
-  bool _wifi_connecting = false;
+  // String _wifi_ssid;
+  // String _wifi_password;
+  // int _led_pin = -1; // led pin for indicating state
+  // bool _wifi_connecting = false;
   bool _led_state = false;
   uint64_t _led_blink_time = 0; // used to turn led on and off
-  uint32_t _connection_retries = 0;
-  uint64_t _ap_time = 0; // used to check how much time spent in AP mode
+
+  // Wifi
+  // uint32_t _connection_retries = 0;
+  // uint64_t _ap_time = 0; // used to check how much time spent in AP mode
 
   // server for recieving wifi commands
 #if defined(ESP32) || defined(LIBRETUYA)
@@ -95,11 +98,6 @@ protected:
 #elif defined(ESP8266)
   ESP8266WebServer _server;
 #endif
-  // #if defined(ESP32) || defined(LIBRETUYA)
-  // WiFiMulti wiFiMulti;
-  // #elif defined(ESP8266)
-  // ESP8266WiFiMulti wiFiMulti;
-  // #endif
 
   WebSocketsClient webSocket;
   SendStatusFunction sendStatus;
@@ -108,18 +106,18 @@ protected:
   ConnectedFunction connected;
 
   // Sockets
-  // void webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
   void gotMessageSocket(uint8_t *payload);
 
-  // void sendStatusWithSocket(DynamicJsonDocument doc);
-  // void getDataFromSocket(DynamicJsonDocument receivedDoc); // TODO
-  void _getWifiCredentialsFromNVS();
-  void _initAPMode();
-  void _wifiConnected();
-  void _setupWebServer();
-  void _handleRoot();
-  void _handleConnect();
+  // void _getWifiCredentialsFromNVS();
+  // void _initAPMode();
+  // void _wifiConnected();
+  // void _setupWebServer();
+  // void _handleRoot();
+  // void _handleConnect();
+  // void initWifi();
+  // void initWifi(const char *ssid, const char *password);
 
+  void init();
 
 public:
   void sendStatusWithSocket(bool save = false); //- do the default (no receiverid)
@@ -155,60 +153,33 @@ protected:
 public:
   // public methods
   SocketClient();
-  bool isSSL;
+  ~SocketClient();
 
   void reconnect();
 
-  void initWifi();
-  void initWifi(const char *ssid, const char *password);
+  void init(const SocketClientConfig *config);
 
-  void init();
-  
-  void init(const SocketClientConfig *config)
-  {
-    RETURN_IF_NULLPTR(config);
-    ASSIGN_IF_NOT_NULLPTR(deviceApp, config->name);
-    ASSIGN_IF_NOT_NULLPTR(deviceType, config->type);
-    ASSIGN_IF_NOT_NULLPTR(socketHostURL, config->host);
-    ASSIGN_IF_NOT_NULLPTR(token, config->token);
-    ASSIGN_IF_NOT_NULLPTR(sendStatus, config->sendStatus);
-    ASSIGN_IF_NOT_NULLPTR(receivedCommand, config->receivedCommand);
-    ASSIGN_IF_NOT_NULLPTR(entityChanged, config->entityChanged);
-    ASSIGN_IF_NOT_NULLPTR(connected, config->connected);
+  void init(const char *socketHostURL, int port, bool _isSSL);
 
-    version = config->version;
-    port = config->port;
-    isSSL = config->isSSL;
-    if (config->ledPin > 0) {
-      setLedPin(config->ledPin);
-    }
-    init();
-  }
-
-  void init(const char *socketHostURL, int port, bool _isSSL)
-  {
-    setSocketHost(socketHostURL, port, _isSSL);
-    init();
-  }
   void loop();
 
   // setters
   void setAppAndVersion(const char *deviceApp, float version)
   {
-    this->deviceApp = deviceApp;
-    this->version = version;
+    this->_deviceApp = deviceApp;
+    this->_version = version;
   }
 
   void setDeviceType(const char *deviceType)
   {
-    this->deviceType = deviceType;
+    this->_deviceType = deviceType;
   }
 
   void setSocketHost(const char *socketHostURL, int port, bool _isSSL)
   {
-    this->socketHostURL = socketHostURL;
-    this->port = port;
-    this->isSSL = _isSSL;
+    this->_socketHostURL = socketHostURL;
+    this->_port = port;
+    this->_isSSL = _isSSL;
   }
 
   void setSendStatusFunction(SendStatusFunction func)
@@ -233,39 +204,39 @@ public:
 
   void setToken(const char *token)
   {
-    this->token = token;
+    this->_token = token;
   }
 
-  void setLedPin(int led_pin)
-  {
-    _led_pin = led_pin;
-    _led_state = false;
-    pinMode(_led_pin, OUTPUT);
-    digitalWrite(_led_pin, LOW); // turn off led
-  }
+  // void setLedPin(int led_pin)
+  // {
+  //   _led_pin = led_pin;
+  //   _led_state = false;
+  //   pinMode(_led_pin, OUTPUT);
+  //   digitalWrite(_led_pin, LOW); // turn off led
+  // }
 
-  void setLedState(bool state)
-  {
-    _led_state = state;
-    if (_led_pin != -1)
-    {
-      digitalWrite(_led_pin, _led_state ? HIGH : LOW);
-    }
-  }
+  // void setLedState(bool state)
+  // {
+  //   _led_state = state;
+  //   if (_led_pin != -1)
+  //   {
+  //     digitalWrite(_led_pin, _led_state ? HIGH : LOW);
+  //   }
+  // }
 
-  void toggle_led_time(uint64_t now, int period, bool print_dot = false, bool count_retires = false) {
-    // printf("Toggle LED time: %llu, period: %d, print_dot: %d, count_retires: %d\n", now, period, print_dot, count_retires);
-    // printf("LEd pin: %d, led state: %d, blink time: %llu, connection retries: %d\n", _led_pin, _led_state, _led_blink_time, _connection_retries);
-    if (now - _led_blink_time > (uint64_t)period && _led_pin != -1) {
-      if (count_retires) {
-        _connection_retries++;
-      }
-      if (print_dot) {
-        Serial.print(".");
-      }
-      _led_blink_time = now;
-      _led_state = 1 - _led_state;
-      setLedState(_led_state);
-    }
-  }
+  // void toggle_led_time(uint64_t now, int period, bool print_dot = false, bool count_retires = false) {
+  //   // printf("Toggle LED time: %llu, period: %d, print_dot: %d, count_retires: %d\n", now, period, print_dot, count_retires);
+  //   // printf("LEd pin: %d, led state: %d, blink time: %llu, connection retries: %d\n", _led_pin, _led_state, _led_blink_time, _connection_retries);
+  //   if (now - _led_blink_time > (uint64_t)period && _led_pin != -1) {
+  //     if (count_retires) {
+  //       _connection_retries++;
+  //     }
+  //     if (print_dot) {
+  //       Serial.print(".");
+  //     }
+  //     _led_blink_time = now;
+  //     _led_state = 1 - _led_state;
+  //     setLedState(_led_state);
+  //   }
+  // }
 };

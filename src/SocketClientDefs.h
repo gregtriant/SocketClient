@@ -10,13 +10,10 @@
 #error Platform not supported
 #endif
 
-// defines for the Preferences library
-#define RW_MODE false
-#define RO_MODE true
 
+#define MAX_ULONG 4294967295UL
 #define LED_TIME_1 500  // AP mode
 #define LED_TIME_2 1000 // Wifi connecting mode
-#define MAX_ULONG 4294967295UL
 #define MAX_TIME_IN_AP_MODE 60*1000 // 1min
 
 #define USE_SERIAL Serial
@@ -32,6 +29,20 @@
 #else
   #error Platform not supported
 #endif
+
+
+#if defined(ESP32) || defined(LIBRETUYA)
+#define DEVICE_TYPE  "ESP32"
+#elif defined(ESP8266)
+#define DEVICE_TYPE  "ESP8266"
+#else
+#define DEVICE_TYPE  "UNKNOWN"
+#endif
+
+
+#define DEFAULT_PORT 80
+#define DEFAULT_HOST "sensordata.space"
+#define DEFAULT_APP_NAME "SocketClient"
 
 
 /**
@@ -54,6 +65,9 @@ typedef std::function<void(JsonDoc &doc)> EntityChangedFunction;
 typedef std::function<void(JsonDoc &doc)> ConnectedFunction;
 
 
+/**
+ * Macros
+ */
 #define ASSIGN_IF_NOT_NULLPTR(target, value) \
   do { if ((value) != nullptr) { (target) = (value); } } while (0)
 
