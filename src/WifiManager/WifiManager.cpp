@@ -38,7 +38,7 @@ void WifiManager::loop()
 
     if (WiFi.getMode() == CONST_MODE_AP) {
         
-        if (now - _ap_time > 1000) { 
+        if (now - _ap_time > 2000) { 
             _ap_time = now;
             Serial.println("Ap mode");
         }

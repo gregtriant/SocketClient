@@ -117,6 +117,10 @@ SocketClient::~SocketClient()
     delete _nvsManager;
     _nvsManager = nullptr;
   }
+  if (_webserverManager) {
+    delete _webserverManager;
+    _webserverManager = nullptr;
+  }
 }
 
 void SocketClient::sendLog(const String &message)
@@ -453,7 +457,7 @@ void SocketClient::reconnect()
 }
 
 
-void SocketClient::init()
+void SocketClient::_init()
 {
   _nvsManager = new NVSManager();
 
@@ -464,17 +468,12 @@ void SocketClient::init()
     _wifiManager->init();
   }
 
+  _webserverManager = new WebserverManager(_wifiManager);
+
   webSocket.onEvent(SocketClient_webSocketEvent); // initialte our event handler
   webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
   webSocket.enableHeartbeat(5000, 12000, 2);
   reconnect();
-
-  // Start the local web server
-  // if (WiFi.isConnected()) {
-  //   _setupWebServer();
-  //   _server.begin();
-  //   Serial.println("Web server started.");
-  // }
 }
 
 
@@ -497,14 +496,14 @@ void SocketClient::init(const SocketClientConfig *config)
   _isSSL = config->isSSL;
   _handleWifi = config->handleWifi;
 
-  init();
+  _init();
 }
 
 
 void SocketClient::init(const char *socketHostURL, int port, bool _isSSL)
 {
   setSocketHost(socketHostURL, port, _isSSL);
-  init();
+  _init();
 }
 
 
@@ -589,16 +588,12 @@ void SocketClient::init(const char *socketHostURL, int port, bool _isSSL)
 void SocketClient::loop()
 {
   if (_handleWifi) {
-    // if (WiFi.status() != WL_CONNECTED) {
-      this->webSocket.loop();
-    // }
-    this->_wifiManager->loop();
-    return;
+    _wifiManager->loop();
   } else if (!_handleWifi) {
-    // Wifi is not handled by the Sokcet Client library
-    this->webSocket.loop();
-    return;
   }
+  _webserverManager->loop();
+  webSocket.loop();
+  return;
 
   // Wifi Access Point mode
   uint64_t now = millis();

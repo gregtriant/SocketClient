@@ -24,6 +24,7 @@
 
 #include "NVS/NVSManager.h"
 #include "WifiManager/WifiManager.h"
+#include "WebserverManager/WebserverManager.h"
 
 /**
  * @brief Configuration structure for the SocketClient.
@@ -64,6 +65,7 @@ class SocketClient
 protected:
   NVSManager *_nvsManager;
   WifiManager *_wifiManager;
+  WebserverManager *_webserverManager;
 
   // data
   float _version = 0.2; // change
@@ -117,7 +119,7 @@ protected:
   // void initWifi();
   // void initWifi(const char *ssid, const char *password);
 
-  void init();
+  void _init();
 
 public:
   void sendStatusWithSocket(bool save = false); //- do the default (no receiverid)
