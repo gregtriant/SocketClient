@@ -3,15 +3,11 @@
 #include <ArduinoJson.h>
 #include <WiFiClientSecure.h>
 #include <WebSocketsClient.h>
-#include "SocketClientDefs.h"
 
 #if defined(ESP32) || defined(LIBRETUYA)
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <HTTPClient.h>
-#include <Update.h>
-#include <Preferences.h>
-#include <WebServer.h>
 #include <DNSServer.h>
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
@@ -22,6 +18,7 @@
 #error Platform not supported
 #endif
 
+#include "SocketClientDefs.h"
 #include "NVS/NVSManager.h"
 #include "WifiManager/WifiManager.h"
 #include "WebserverManager/WebserverManager.h"
@@ -90,19 +87,9 @@ protected:
   ReceivedCommandFunction receivedCommand;
   EntityChangedFunction entityChanged;
   ConnectedFunction connected;
-
+  
   void gotMessageSocket(uint8_t *payload);
   void _init();
-
-public:
-  void sendStatusWithSocket(bool save = false); //- do the default (no receiverid)
-  void sendLog(const String &message);
-  void sendNotification(const String &message);
-  void sendNotification(const String &message, const JsonDoc &data);
-  bool isConnected() { return webSocket.isConnected(); }
-  void disconnect() { webSocket.disconnect(); }
-
-protected:
   static bool watchdog(void *v);
   static unsigned long last_dog;
   static unsigned long last_png;
@@ -117,12 +104,16 @@ public:
   ~SocketClient();
 
   void reconnect();
-  void stopReconnect(); 
+  void stopReconnect();
+  void sendStatusWithSocket(bool save = false); //- do the default (no receiverid)
+  void sendLog(const String &message);
+  void sendNotification(const String &message);
+  void sendNotification(const String &message, const JsonDoc &data);
+  bool isConnected() { return webSocket.isConnected(); }
+  void disconnect() { webSocket.disconnect(); }
 
   void init(const SocketClientConfig *config);
-
   void init(const char *socketHostURL, int port, bool _isSSL);
-
   void loop();
 
   // setters
