@@ -3,7 +3,6 @@
 
 WebserverManager::WebserverManager(WifiManager *wifiManager)
 {
-  Serial.println("WebserverManager::WebserverManager");
   _wifiManager = wifiManager;
   _setupWebServer();
   _server.begin();
@@ -20,38 +19,38 @@ void WebserverManager::_setupWebServer()
   _server.on("/connect", HTTP_POST, [this]()
              { this->_handleWifiConnect(); });
 
-  // _server.on("/leave-wifi", HTTP_GET, [this]()
-  //            {
-  //              _server.send(200, "text/plain", "Leaving Wi-Fi...");
-  //              Serial.println("Leaving Wi-Fi...");
-  //              WiFi.disconnect(true);
-  //             //  _initAPMode(); 
-  //           });
+  _server.on("/leave", HTTP_GET, [this]()
+             {
+               _server.send(200, "text/plain", "Leaving Wi-Fi...");
+               Serial.println("Leaving Wi-Fi...");
+               WiFi.disconnect(true);
+              //  _initAPMode(); 
+            });
 
-  // _server.on("/restart", HTTP_GET, [this]()
-  //            {
-  //              _server.send(200, "text/plain", "Restarting...");
-  //              Serial.println("Restarting...");
-  //              ESP.restart(); });
+  _server.on("/restart", HTTP_GET, [this]()
+             {
+               _server.send(200, "text/plain", "Restarting...");
+               Serial.println("Restarting...");
+               ESP.restart(); });
 
-  // _server.on("/status", HTTP_GET, [this]()
-  //            { _server.send(200, "text/plain", "Status: OK"); });
+  _server.on("/status", HTTP_GET, [this]()
+             { _server.send(200, "text/plain", "Status: OK"); });
 
-  // _server.on("/scan-wifi", HTTP_GET, [this]()
-  //            {
-  //              _server.send(200, "text/plain", "Scanning Wi-Fi networks...");
-  //              Serial.println("Scanning Wi-Fi networks...");
-  //              int n = WiFi.scanNetworks();
-  //              String networks = "Found " + String(n) + " networks:\n";
-  //              for (int i = 0; i < n; ++i)
-  //              {
-  //                networks += WiFi.SSID(i) + "\n";
-  //              }
-  //              _server.send(200, "text/plain", networks); });
+  _server.on("/scan", HTTP_GET, [this]()
+             {
+               _server.send(200, "text/plain", "Scanning Wi-Fi networks...");
+               Serial.println("Scanning Wi-Fi networks...");
+               int n = WiFi.scanNetworks();
+               String networks = "Found " + String(n) + " networks:\n";
+               for (int i = 0; i < n; ++i)
+               {
+                 networks += WiFi.SSID(i) + "\n";
+               }
+               _server.send(200, "text/plain", networks); });
               
   // Serve the form for any URL
-  // _server.onNotFound([this]()
-  //                    { this->_handleRoot(); });
+  _server.onNotFound([this]()
+                     { this->_handleRoot(); });
 }
 
 

@@ -18,15 +18,17 @@
 #define RW_MODE false
 #define RO_MODE true
 
-#define NVS_WIFI_SSID_TOKEN "ssid"
+#define NVS_WIFI_SSID_TOKEN     "ssid"
 #define NVS_WIFI_PASSWORD_TOKEN "pass"
 
 class NVSManager
 {
-private:
+protected:
     Preferences _wifi_preferences;
 public:
     NVSManager();
+    ~NVSManager();
+
     void saveWifiCredentials(String ssid, String password);
     void getWifiCredentials(String &ssid, String &password);
 };

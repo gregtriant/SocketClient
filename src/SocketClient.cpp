@@ -88,7 +88,7 @@ void SocketClient_connected(JsonDoc &doc)
 
 SocketClient *globalSC = nullptr;
 
-SocketClient::SocketClient()
+SocketClient::SocketClient() : _nvsManager(nullptr), _wifiManager(nullptr), _webserverManager(nullptr)
 {
   static int count = 0;
   count++;
@@ -109,18 +109,12 @@ SocketClient::SocketClient()
 SocketClient::~SocketClient()
 {
   globalSC = nullptr;
-  if (_wifiManager) {
-    delete _wifiManager;
-    _wifiManager = nullptr;
-  }
-  if (_nvsManager) {
-    delete _nvsManager;
-    _nvsManager = nullptr;
-  }
-  if (_webserverManager) {
-    delete _webserverManager;
-    _webserverManager = nullptr;
-  }
+  delete _wifiManager;
+  _wifiManager = nullptr;
+  delete _nvsManager;
+  _nvsManager = nullptr;
+  delete _webserverManager;
+  _webserverManager = nullptr;
 }
 
 void SocketClient::sendLog(const String &message)
@@ -456,6 +450,12 @@ void SocketClient::reconnect()
   }
 }
 
+void SocketClient::stopReconnect()
+{
+  webSocket.setReconnectInterval(MAX_ULONG);
+  webSocket.enableHeartbeat(MAX_ULONG, MAX_ULONG, 255);
+}
+
 
 void SocketClient::_init()
 {
@@ -463,7 +463,7 @@ void SocketClient::_init()
 
   String ap_ssid = String(_deviceType) + "-" + String(_deviceApp);
   String ap_password = String(_token).substring(String(_token).length() - 10);
-  _wifiManager = new WifiManager(_nvsManager, ap_ssid, ap_password, [this]() { this->reconnect(); });
+  _wifiManager = new WifiManager(_nvsManager, ap_ssid, ap_password, [this]() { this->reconnect(); }, [this]() { this->stopReconnect(); } );
   if (_handleWifi) {
     _wifiManager->init();
   }
@@ -484,13 +484,12 @@ void SocketClient::init(const SocketClientConfig *config)
   ASSIGN_IF_NOT_NULLPTR(_deviceType, config->type);
   ASSIGN_IF_NOT_NULLPTR(_socketHostURL, config->host);
   ASSIGN_IF_NOT_NULLPTR(_token, config->token);
-  
+
   ASSIGN_IF_NOT_NULLPTR(sendStatus, config->sendStatus);
   ASSIGN_IF_NOT_NULLPTR(receivedCommand, config->receivedCommand);
   ASSIGN_IF_NOT_NULLPTR(entityChanged, config->entityChanged);
   ASSIGN_IF_NOT_NULLPTR(connected, config->connected);
 
-  
   _version = config->version;
   _port = config->port;
   _isSSL = config->isSSL;
@@ -507,132 +506,12 @@ void SocketClient::init(const char *socketHostURL, int port, bool _isSSL)
 }
 
 
-// void SocketClient::initWifi(const char *ssid, const char *password)
-// {
-//   _handleWifi = true;
-//   _wifi_connecting = true;
-//   _connection_retries = 0;
-//   _wifi_ssid = String(ssid);
-//   _wifi_password = String(password);
-//   webSocket.setReconnectInterval(MAX_ULONG); // stop ws reconnect
- 
-//   Serial.println("Connecting to WiFi: " + _wifi_ssid);
-//   if(WiFi.getMode() == CONST_MODE_AP) {
-//     WiFi.softAPdisconnect(true); // stop AP mode
-//   }
-//   WiFi.mode(WIFI_STA);
-//   WiFi.begin(ssid, password);
-
-//   _led_blink_time = millis();
-//   setLedState(true); // turn on led
-// }
-
-
-// void SocketClient::_wifiConnected()
-// {
-//   Serial.print("Connected to ");
-//   Serial.print(_wifi_ssid);
-//   Serial.print("!  IP address:  ");
-//   Serial.println(WiFi.localIP());
-//   _localIP = WiFi.localIP().toString();
-//   // handle the websocket connection
-//   webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
-//   webSocket.enableHeartbeat(5000, 12000, 2);
-//   this->reconnect();
-// }
-
-
-// void SocketClient::_initAPMode()
-// {
-//   // stop STA mode
-//   WiFi.disconnect(true);
-//   // WiFi.mode(WIFI_AP); // set to AP mode
-//   // if in AP_STA mode make sure in same channel
-//   IPAddress apIP(192, 168, 4, 1);
-//   IPAddress subnet(255, 255, 255, 0);
-//   WiFi.softAPConfig(apIP, apIP, subnet);
-
-//   String ap_name = String(deviceType) + "-" + String(deviceApp);
-//   String ap_password = String(token).substring(String(token).length() - 10);
-//   Serial.println("AP name: " + ap_name);
-//   Serial.println("AP password: " + ap_password);
-//   WiFi.softAP(ap_name, ap_password); // AP name and password
-
-//   Serial.print("Starting AP mode... ");
-//   Serial.println(WiFi.softAPIP());
-
-//   // stop ws reconnect
-//   webSocket.setReconnectInterval(MAX_ULONG);
-//   _ap_time = millis();
-// }
-
-
-// void SocketClient::initWifi()
-// {
-//   _handleWifi = true;
-//   _getWifiCredentialsFromNVS();
-//   // check if we have credentials in NVS
-//   if (_wifi_ssid.isEmpty() || _wifi_password.isEmpty()) {
-//     Serial.println("No WiFi credentials found in NVS. Please set them.");
-//     _initAPMode();
-//     return;
-//   } else {
-//     Serial.println("\nWiFi credentials found in NVS.");
-//     Serial.println("SSID: " + _wifi_ssid);
-//     Serial.println("Password: " + _wifi_password);
-//     this->initWifi(_wifi_ssid.c_str(), _wifi_password.c_str());
-//   }
-// }
-
-
 void SocketClient::loop()
 {
   if (_handleWifi) {
     _wifiManager->loop();
-  } else if (!_handleWifi) {
   }
+
   _webserverManager->loop();
   webSocket.loop();
-  return;
-
-  // Wifi Access Point mode
-  uint64_t now = millis();
-  wl_status_t wifiStatus = WiFi.status();
-  int wifiMode = (int)WiFi.getMode();
-  if (WiFi.getMode() == CONST_MODE_AP) // case AP mode
-  {
-    // _server.handleClient();
-    // toggle_led_time(now, LED_TIME_1, false, false);
-    // if (now - _ap_time > MAX_TIME_IN_AP_MODE) // if in AP mode for more than 60 sec, turn off led
-    // {
-    //   this->initWifi(_wifi_ssid.c_str(), _wifi_password.c_str());
-    // }
-    return; // if in ap moode, do not handle ws
-  }
-
-  // Wifi STA mode
-  if (wifiStatus != WL_CONNECTED && wifiMode == CONST_MODE_STA) // Not connected to wifi
-  {
-    // if (_wifi_connecting)
-    // {
-    //   toggle_led_time(now, LED_TIME_2, true, true);
-    //   if (_connection_retries > 20)
-    //   {
-    //     Serial.println("Failed to connect to WiFi. Returning to AP mode.");
-    //     _initAPMode();
-    //   }
-    //   return;
-    // } else {
-    //   this->initWifi(_wifi_ssid.c_str(), _wifi_password.c_str());
-    // }
-  }
-  else if (wifiStatus == WL_CONNECTED && wifiMode == CONST_MODE_STA /*&& _wifi_connecting*/) // Just conneted to wifi
-  {
-    // _wifi_connecting = false;
-    // _wifiConnected();
-    // setLedState(false);
-  }
-
-  // _server.handleClient();
-  // this->webSocket.loop();
 }

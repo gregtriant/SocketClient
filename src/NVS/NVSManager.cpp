@@ -1,10 +1,9 @@
 #include "NVSManager.h"
 
 
-NVSManager::NVSManager()
-{
-}
+NVSManager::NVSManager() {}
 
+NVSManager::~NVSManager() {}
 
 void NVSManager::saveWifiCredentials(String ssid, String password)
 {
@@ -19,7 +18,7 @@ void NVSManager::getWifiCredentials(String &ssid, String &password)
 {
     _wifi_preferences.begin("WIFIPrefs", RW_MODE);
     
-    if (true) {
+    if (false) {
         Serial.println("Initializing NVS for the first time.");
         _wifi_preferences.putString(NVS_WIFI_SSID_TOKEN, "");
         _wifi_preferences.putString(NVS_WIFI_PASSWORD_TOKEN, "");

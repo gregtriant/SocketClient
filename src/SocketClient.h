@@ -158,6 +158,7 @@ public:
   ~SocketClient();
 
   void reconnect();
+  void stopReconnect(); 
 
   void init(const SocketClientConfig *config);
 

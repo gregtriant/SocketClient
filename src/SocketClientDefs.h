@@ -21,7 +21,7 @@
 #if defined(ESP32) || defined(LIBRETUYA)
   #define CONST_MODE_AP WIFI_MODE_AP
   #define CONST_MODE_STA WIFI_MODE_STA
-  #define CONST_MODE_AP_STA WIFI_MODE_AP_STA
+  #define CONST_MODE_AP_STA  WIFI_MODE_APSTA
 #elif defined(ESP8266)
   #define CONST_MODE_AP WIFI_AP
   #define CONST_MODE_STA WIFI_STA

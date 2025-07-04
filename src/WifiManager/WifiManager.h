@@ -22,7 +22,7 @@
 #error Platform not supported
 #endif
 
-
+#include "../Log/Log.h"
 #include "../NVS/NVSManager.h"
 
 class WifiManager 
@@ -31,11 +31,13 @@ class WifiManager
 protected:
     NVSManager *_nvsManager;
 
-    String _wifi_ssid           = "";
-    String _wifi_password       = "";
-    String _local_ip            = "";
-    String _mac_address         = "";
-    uint64_t _connecting_time   = 0;
+    String _wifi_ssid            = "";
+    String _wifi_password        = "";
+    String _local_ip             = "";
+    String _mac_address          = "";
+    uint64_t _connecting_time    = 0;
+    uint8_t _connecting_attempts = 0;
+    wl_status_t _wifi_status     = WL_IDLE_STATUS; // current wifi status
 
     // for AP mode
     String _ap_ssid     = "";
@@ -47,8 +49,9 @@ protected:
     void _initAPMode();
 
     std::function<void()> _onInternetRestored;
+    std::function<void()> _onInternetLost;
 public:
-    WifiManager(NVSManager *nvsManager, const String& ap_ssid, const String& ap_password, std::function<void()> onInternetRestored = nullptr);
+    WifiManager(NVSManager *nvsManager, const String& ap_ssid, const String& ap_password, std::function<void()> onInternetRestored = nullptr, std::function<void()> onInternetLost = nullptr);
     
     void init();
     void loop();
