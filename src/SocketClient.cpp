@@ -10,6 +10,7 @@ unsigned long SocketClient::last_dog = 0;
 unsigned long SocketClient::last_png = 0;
 unsigned long SocketClient::last_reconnect = 0;
 unsigned long SocketClient::reconnect_time = 30000; //- 30 sec
+
 bool SocketClient::watchdog(void *vv)
 {
   SocketClient *sc = (SocketClient *)vv;
@@ -193,7 +194,7 @@ void SocketClient::gotMessageSocket(uint8_t *payload)
   {
     String updateURL = doc["url"];
     MY_LOGD(WS_TAG, "Update URL: %s", updateURL.c_str());
-    updatingMode(updateURL);
+    _otaManager->startOTA(updateURL);
   }
 }
 
@@ -285,136 +286,6 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
   }
 }
 
-// --------------------------------------------------------  OTA functions  ----------------------------------------- //
-void SocketClient::update_started()
-{
-  MY_LOGD(WS_TAG, "CALLBACK:  HTTP update process started");
-}
-
-void SocketClient::update_finished()
-{
-  MY_LOGD(WS_TAG, "CALLBACK:  HTTP update process finished");
-}
-
-void SocketClient::update_progress(int cur, int total)
-{
-  MY_LOGD(WS_TAG, "CALLBACK:  HTTP update process at %d of %d bytes...\n", cur, total);
-}
-
-void SocketClient::update_error(int err)
-{
-  MY_LOGD(WS_TAG, "CALLBACK:  HTTP update fatal error code %d\n", err);
-}
-
-// for ESP32
-#if defined(ESP32) || defined(LIBRETUYA)
-void SocketClient::checkUpdate(String host)
-{
-  HTTPClient client;
-  // Connect to external web server
-  // WiFiClient wificlient;
-  client.begin(host); // wificlient,
-  // Get file, just to check if each reachable
-  int resp = client.GET();
-  MY_LOGD(WS_TAG, "Response: %d", resp);
-  // If file is reachable, start downloading
-  if (resp == 200)
-  {
-    // get length of document (is -1 when Server sends no Content-Length header)
-    totalLength = client.getSize();
-    // transfer to local variable
-    int len = totalLength;
-    // this is required to start firmware update process
-    Update.begin(UPDATE_SIZE_UNKNOWN);
-    MY_LOGD(WS_TAG, "FW Size: %u\n", totalLength);
-    // create buffer for read
-    uint8_t buff[128] = {0};
-    // get tcp stream
-    WiFiClient *stream = client.getStreamPtr();
-    // read all data from server
-    MY_LOGD(WS_TAG, "Updating firmware...");
-    while (client.connected() && (len > 0 || len == -1))
-    {
-      // get available data size
-      size_t size = stream->available();
-      if (size)
-      {
-        // read up to 128 byte
-        int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
-        // pass to function
-        SocketClient::updateFirmware(buff, c);
-        if (len > 0)
-        {
-          len -= c;
-        }
-      }
-      delay(1);
-    }
-  }
-  else
-  {
-    MY_LOGD(WS_TAG, "Cannot download firmware file. Only HTTP response 200: OK is supported. Double check firmware location #defined in HOST.");
-  }
-  client.end();
-}
-#endif
-
-// for ESP32
-// Function to update firmware incrementally
-// Buffer is declared to be 128 so chunks of 128 bytes
-// from firmware is written to device until server closes
-void SocketClient::updateFirmware(uint8_t *data, size_t len)
-{
-  Update.write(data, len);
-  currentLength += len;
-  // Print dots while waiting for update to finish
-  MY_LOGV2(".");
-  // if current length of written firmware is not equal to total firmware size, repeat
-  if (currentLength != totalLength)
-    return;
-  Update.end(true);
-  MY_LOGD(WS_TAG, "Update Success, Total Size: %u\nRebooting...", currentLength);
-  // Restart ESP32 to see changes
-  ESP.restart();
-}
-
-void SocketClient::updatingMode(String updateURL)
-{
-
-#if defined(ESP32) || defined(LIBRETUYA)
-  SocketClient::checkUpdate(updateURL);
-
-#elif defined(ESP8266)
-  // wait for WiFi connection
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    WiFiClient client;
-    ESPhttpUpdate.setLedPin(LED_BUILTIN, LOW);
-    ESPhttpUpdate.onStart(SocketClient::update_started);
-    ESPhttpUpdate.onEnd(SocketClient::update_finished);
-    // ESPhttpUpdate.onProgress(SocketClient::update_progress);
-    ESPhttpUpdate.onError(SocketClient::update_error);
-
-    t_httpUpdate_return ret = ESPhttpUpdate.update(client, updateURL); // t_httpUpdate_return ret = ESPhttpUpdate.update(client, "server", 80, "file.bin");
-    switch (ret)
-    {
-    case HTTP_UPDATE_FAILED:
-      MY_LOGD(WS_TAG, "HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
-      break;
-
-    case HTTP_UPDATE_NO_UPDATES:
-      MY_LOGD(WS_TAG, "HTTP_UPDATE_NO_UPDATES");
-      break;
-
-    case HTTP_UPDATE_OK:
-      MY_LOGD(WS_TAG, "HTTP_UPDATE_OK");
-      break;
-    }
-  }
-#endif
-}
-
-
 void SocketClient::reconnect()
 {
   if (!WiFi.isConnected()) {
@@ -425,10 +296,7 @@ void SocketClient::reconnect()
   if (webSocket.isConnected()) {
     webSocket.disconnect();
   }
-
-
   MY_LOGD(WS_TAG, "<reconnect>");
-
   // Clean up any lingering resources
   webSocket.~WebSocketsClient();       // Explicitly call the destructor
   new (&webSocket) WebSocketsClient(); // Reconstruct the object in place
@@ -464,6 +332,7 @@ void SocketClient::_init()
   }
 
   _webserverManager = new WebserverManager(_wifiManager);
+  _otaManager = new OTAManager();
 
   webSocket.onEvent(SocketClient_webSocketEvent); // initialte our event handler
   webSocket.setReconnectInterval(5000); // try ever 5000 again if connection has failed
