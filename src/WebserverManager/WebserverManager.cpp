@@ -82,8 +82,8 @@ void WebserverManager::_handleWifiConnect()
   if (ssid.length() > 0 && password.length() > 0) {
     _server.send(200, "text/plain", "Connecting to Wi-Fi...");
     Serial.println("Received Wi-Fi credentials:");
-    Serial.println("SSID: " + ssid);
-    Serial.println("Password: " + password);
+    // Serial.println("SSID: " + ssid);
+    // Serial.println("Password: " + password);
 
     _wifiManager->saveWifiCredentials(ssid, password);
     _wifiManager->init();

@@ -21,11 +21,11 @@ void WifiManager::init()
     // check if we have credentials in NVS
     if (!_wifi_ssid.isEmpty() && !_wifi_password.isEmpty()) {
         MY_LOGI(WIFI_TAG, "WiFi credentials found in NVS.");
-        MY_LOGI(WIFI_TAG, "SSID: %s", _wifi_ssid.c_str());
-        MY_LOGI(WIFI_TAG, "Password: %s", _wifi_password.c_str());
+        // MY_LOGI(WIFI_TAG, "SSID: %s", _wifi_ssid.c_str());
+        // MY_LOGI(WIFI_TAG, "Password: %s", _wifi_password.c_str());
         _connectingToWifi(_wifi_ssid, _wifi_password);
     } else {
-        MY_LOGI(WIFI_TAG, "No WiFi credentials found in NVS. Please set them.");
+        MY_LOGW(WIFI_TAG, "No WiFi credentials found in NVS. Please set them.");
         _initAPMode();
     }
 }

@@ -1,5 +1,7 @@
 #include "SocketClient.h"
 #include "SocketClientDefs.h"
+#include "Log/Log.h"
+
 #ifndef UPDATE_SIZE_UNKNOWN
 #define UPDATE_SIZE_UNKNOWN 0xFFFFFFFF
 #endif
@@ -17,8 +19,8 @@ bool SocketClient::watchdog(void *vv)
   if (!wsc.isConnected() && (last_reconnect == 0 || (millis() - last_reconnect) > reconnect_time))
   {
     unsigned int x = millis() / (60000);
-    USE_SERIAL.print(x);
-    USE_SERIAL.printf("* reconnect *\n");
+    MY_LOGD(WS_TAG, "%ld", x);
+    MY_LOGD(WS_TAG, "* reconnect *\n");
     last_reconnect = millis();
     reconnect_time += 60000;
     if (reconnect_time > max_reconnect_time)
@@ -31,27 +33,25 @@ bool SocketClient::watchdog(void *vv)
   {
     if (wsc.sendPing())
     {
-      USE_SERIAL.printf("*");
+      MY_LOGD(WS_TAG, "*");
       // last_dog = millis();
     }
     else
     {
-      // USE_SERIAL.printf("* watchdog ping:disconnect *\n");
       // wsc.disconnect();
-      USE_SERIAL.printf("@");
-      //- let the watchdog take care...
+      MY_LOGD(WS_TAG, "@");
     }
   }
 
   if (last_dog > 0 && millis() - last_dog > watchdog_time)
   {
-    USE_SERIAL.printf("* watchdog time *\n");
+    MY_LOGD(WS_TAG, "* watchdog time *\n");
     wsc.disconnect();
     return true;
   }
   if (last_png > 0 && millis() - last_png > watchdog_time)
   {
-    USE_SERIAL.printf("* png watchdog time *\n");
+    MY_LOGD(WS_TAG, "* png watchdog time *\n");
     wsc.disconnect();
     return true;
   }
@@ -69,21 +69,21 @@ void SocketClient_receivedCommand(JsonDoc &doc)
 {
   String stringData = "";
   serializeJson(doc, stringData);
-  USE_SERIAL.println(stringData);
+  MY_LOGD(WS_TAG, "%s", stringData.c_str());
 }
 
 void SocketClient_entityChanged(JsonDoc &doc)
 {
   String stringData = "";
   serializeJson(doc, stringData);
-  USE_SERIAL.println(stringData);
+  MY_LOGD(WS_TAG, "%s", stringData.c_str());
 }
 
 void SocketClient_connected(JsonDoc &doc)
 {
   String stringData = "";
   serializeJson(doc, stringData);
-  USE_SERIAL.println(stringData);
+  MY_LOGD(WS_TAG, "%s", stringData.c_str());
 }
 
 SocketClient *globalSC = nullptr;
@@ -94,7 +94,7 @@ SocketClient::SocketClient() : _nvsManager(nullptr), _wifiManager(nullptr), _web
   count++;
   if (count > 1)
   {
-    Serial.println("Too many SocketClients created");
+    MY_LOGE(WS_TAG, "Too many SocketClients created");
     exit(-1);
   }
   _isSSL = true;
@@ -128,8 +128,7 @@ void SocketClient::sendLog(const String &message)
 
   String textToSend = "";
   serializeJson(docToSend, textToSend);
-  Serial.println("\nSending Log:");
-  Serial.println(textToSend);
+  MY_LOGD(WS_TAG, "Sending Log: %s", textToSend.c_str());
   webSocket.sendTXT(textToSend);
 }
 
@@ -144,8 +143,7 @@ void SocketClient::sendNotification(const String &message)
 
   String textToSend = "";
   serializeJson(docToSend, textToSend);
-  Serial.println("\nSending notification:");
-  Serial.println(textToSend);
+  MY_LOGD(WS_TAG, "Sending notification: %s", textToSend.c_str());
   webSocket.sendTXT(textToSend);
 }
 
@@ -161,15 +159,14 @@ void SocketClient::sendNotification(const String &message, const JsonDoc &doc)
 
   String textToSend = "";
   serializeJson(docToSend, textToSend);
-  Serial.println("\nSending notification:");
-  Serial.println(textToSend);
+  MY_LOGD(WS_TAG, "Sending notification: %s", textToSend.c_str());
   webSocket.sendTXT(textToSend);
 }
 
 void SocketClient::gotMessageSocket(uint8_t *payload)
 {
   JsonDoc doc;
-  USE_SERIAL.printf("[WSc] got data: %s\n", payload);
+  MY_LOGD(WS_TAG, "Got data: %s\n", payload);
   deserializeJson(doc, payload);
   if (strcmp(doc["message"], "connected") == 0)
   {
@@ -195,7 +192,7 @@ void SocketClient::gotMessageSocket(uint8_t *payload)
   else if (strcmp(doc["message"], "update") == 0)
   {
     String updateURL = doc["url"];
-    Serial.println(updateURL);
+    MY_LOGD(WS_TAG, "Update URL: %s", updateURL.c_str());
     updatingMode(updateURL);
   }
 }
@@ -215,8 +212,7 @@ void SocketClient::sendStatusWithSocket(bool save /*=false*/)
 
   String JsonToSend = "";
   serializeJson(responseDoc, JsonToSend);
-  Serial.println("");
-  Serial.println(JsonToSend);
+  MY_LOGD(WS_TAG, "Returning status: %s", JsonToSend.c_str());
   webSocket.sendTXT(JsonToSend);
 }
 
@@ -227,10 +223,10 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
   switch (type)
   {
   case WStype_ERROR:
-    USE_SERIAL.printf("[WSc] Error!! : %s\n", payload);
+    MY_LOGD(WS_TAG, "Error! : %s", payload);
     break;
   case WStype_DISCONNECTED:
-    USE_SERIAL.printf("[WSc] Disconnected!\n");
+    MY_LOGD(WS_TAG, "Disconnected!");
     globalSC->last_dog = 0;
     globalSC->last_png = 0;
     break;
@@ -239,7 +235,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
     globalSC->last_dog = millis();
     globalSC->last_png = millis();
     JsonDoc doc;
-    USE_SERIAL.printf("[WSc] Connected to url: %s\n", payload);
+    MY_LOGD(WS_TAG, "Connected to url: %s", payload);
     // send message to server when Connected
     doc["message"] = "connect";
     doc["deviceId"] = globalSC->_wifiManager->getMacAddress();
@@ -263,7 +259,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
   break;
   case WStype_BIN:
     globalSC->last_dog = millis();
-    USE_SERIAL.printf("[WSc] get binary length: %u\n", length);
+    MY_LOGD(WS_TAG, "Get binary length: %u", length);
     // hexdump(payload, length);
     // send data to server
     // webSocket.sendBIN(payload, length);
@@ -277,13 +273,13 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
   case WStype_FRAGMENT_FIN:
     break;
   case WStype_PING:
-    USE_SERIAL.printf(".");
+    MY_LOGV2(".");
     globalSC->last_png = millis(); //- got ping from server
     //- globalSC->last_dog = millis();
     //- care only of your own pongs...
     break;
   case WStype_PONG:
-    USE_SERIAL.printf("-");
+    MY_LOGV2("-");
     globalSC->last_dog = millis();
     break;
   }
@@ -292,22 +288,22 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
 // --------------------------------------------------------  OTA functions  ----------------------------------------- //
 void SocketClient::update_started()
 {
-  Serial.println("CALLBACK:  HTTP update process started");
+  MY_LOGD(WS_TAG, "CALLBACK:  HTTP update process started");
 }
 
 void SocketClient::update_finished()
 {
-  Serial.println("CALLBACK:  HTTP update process finished");
+  MY_LOGD(WS_TAG, "CALLBACK:  HTTP update process finished");
 }
 
 void SocketClient::update_progress(int cur, int total)
 {
-  Serial.printf("CALLBACK:  HTTP update process at %d of %d bytes...\n", cur, total);
+  MY_LOGD(WS_TAG, "CALLBACK:  HTTP update process at %d of %d bytes...\n", cur, total);
 }
 
 void SocketClient::update_error(int err)
 {
-  Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
+  MY_LOGD(WS_TAG, "CALLBACK:  HTTP update fatal error code %d\n", err);
 }
 
 // for ESP32
@@ -320,8 +316,7 @@ void SocketClient::checkUpdate(String host)
   client.begin(host); // wificlient,
   // Get file, just to check if each reachable
   int resp = client.GET();
-  Serial.print("Response: ");
-  Serial.println(resp);
+  MY_LOGD(WS_TAG, "Response: %d", resp);
   // If file is reachable, start downloading
   if (resp == 200)
   {
@@ -331,13 +326,13 @@ void SocketClient::checkUpdate(String host)
     int len = totalLength;
     // this is required to start firmware update process
     Update.begin(UPDATE_SIZE_UNKNOWN);
-    Serial.printf("FW Size: %u\n", totalLength);
+    MY_LOGD(WS_TAG, "FW Size: %u\n", totalLength);
     // create buffer for read
     uint8_t buff[128] = {0};
     // get tcp stream
     WiFiClient *stream = client.getStreamPtr();
     // read all data from server
-    Serial.println("Updating firmware...");
+    MY_LOGD(WS_TAG, "Updating firmware...");
     while (client.connected() && (len > 0 || len == -1))
     {
       // get available data size
@@ -358,7 +353,7 @@ void SocketClient::checkUpdate(String host)
   }
   else
   {
-    Serial.println("Cannot download firmware file. Only HTTP response 200: OK is supported. Double check firmware location #defined in HOST.");
+    MY_LOGD(WS_TAG, "Cannot download firmware file. Only HTTP response 200: OK is supported. Double check firmware location #defined in HOST.");
   }
   client.end();
 }
@@ -373,12 +368,12 @@ void SocketClient::updateFirmware(uint8_t *data, size_t len)
   Update.write(data, len);
   currentLength += len;
   // Print dots while waiting for update to finish
-  Serial.print('.');
+  MY_LOGV2(".");
   // if current length of written firmware is not equal to total firmware size, repeat
   if (currentLength != totalLength)
     return;
   Update.end(true);
-  Serial.printf("\nUpdate Success, Total Size: %u\nRebooting...\n", currentLength);
+  MY_LOGD(WS_TAG, "Update Success, Total Size: %u\nRebooting...", currentLength);
   // Restart ESP32 to see changes
   ESP.restart();
 }
@@ -404,15 +399,15 @@ void SocketClient::updatingMode(String updateURL)
     switch (ret)
     {
     case HTTP_UPDATE_FAILED:
-      Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
+      MY_LOGD(WS_TAG, "HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
       break;
 
     case HTTP_UPDATE_NO_UPDATES:
-      Serial.println("HTTP_UPDATE_NO_UPDATES");
+      MY_LOGD(WS_TAG, "HTTP_UPDATE_NO_UPDATES");
       break;
 
     case HTTP_UPDATE_OK:
-      Serial.println("HTTP_UPDATE_OK");
+      MY_LOGD(WS_TAG, "HTTP_UPDATE_OK");
       break;
     }
   }
@@ -423,7 +418,7 @@ void SocketClient::updatingMode(String updateURL)
 void SocketClient::reconnect()
 {
   if (!WiFi.isConnected()) {
-    USE_SERIAL.println("SC <No WiFi>");
+    MY_LOGD(WS_TAG, "<No WiFi>");
     return;
   }
 
@@ -432,7 +427,7 @@ void SocketClient::reconnect()
   }
 
 
-  USE_SERIAL.println("SC <reconnect>");
+  MY_LOGD(WS_TAG, "<reconnect>");
 
   // Clean up any lingering resources
   webSocket.~WebSocketsClient();       // Explicitly call the destructor
