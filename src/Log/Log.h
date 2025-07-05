@@ -1,4 +1,5 @@
-
+#ifndef LOG_H
+#define LOG_H
 
 #define MY_LOGE(tag, fmt, ...) Serial.printf("[E] (%4s) " fmt "\n", tag, ##__VA_ARGS__)
 #define MY_LOGW(tag, fmt, ...) Serial.printf("[W] (%4s) " fmt "\n", tag, ##__VA_ARGS__)
@@ -13,3 +14,5 @@
 #define OTA_TAG    " OTA"
 #define NVS_TAG    " NVS"
 #define APP_TAG    " APP"
+
+#endif // LOG_H
