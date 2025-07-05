@@ -88,7 +88,7 @@ void WifiManager::_connectingToWifi(String ssid, String password)
     if (WiFi.getMode() != CONST_MODE_AP_STA && WiFi.getMode() != CONST_MODE_STA) {
         WiFi.mode(WIFI_STA);
     }
-    WiFi.begin(ssid, password);
+    WiFi.begin(ssid.c_str(), password.c_str());
 }
 
 
