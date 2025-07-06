@@ -1,0 +1,17 @@
+BasedOnStyle: Google
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 200
+AllowShortIfStatementsOnASingleLine: false
+
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: false
+  AfterClass: false
+  AfterEnum: false
+  AfterStruct: false
+  AfterNamespace: false
+  BeforeCatch: false
+  BeforeElse: false
+  IndentBraces: false
