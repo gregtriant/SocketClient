@@ -46,23 +46,20 @@
 #define DEFAULT_APP_NAME "SocketClient"
 
 /**
- * @brief An alias for the ArduinoJson DynamicJsonDocument type with JSON_SIZE
- * bytes capacity.
+ * @brief JsonVariant does reference counting, no need to use &.
+ * JsonVariant is a reference to a JsonDocument.
  */
-class JsonDoc : public ArduinoJson::DynamicJsonDocument {
-   public:
-	JsonDoc() : ArduinoJson::DynamicJsonDocument(JSON_SIZE) {}
-};
+typedef JsonVariant JsonDoc;
 
 /**
  * @brief Function type definitions for the SocketClient library.
  * These functions are used to handle various events such as sending status,
  * receiving commands, entity changes, and connection events.
  */
-typedef std::function<void(JsonDoc &doc)> SendStatusFunction;
-typedef std::function<void(JsonDoc &doc)> ReceivedCommandFunction;
-typedef std::function<void(JsonDoc &doc)> EntityChangedFunction;
-typedef std::function<void(JsonDoc &doc)> ConnectedFunction;
+typedef std::function<void(JsonDoc doc)> SendStatusFunction;
+typedef std::function<void(JsonDoc doc)> ReceivedCommandFunction;
+typedef std::function<void(JsonDoc doc)> EntityChangedFunction;
+typedef std::function<void(JsonDoc doc)> ConnectedFunction;
 
 /**
  * Macros

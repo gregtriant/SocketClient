@@ -53,24 +53,23 @@ bool SocketClient::watchdog(void *vv) {
 }
 
 // Initialize default functions for the user
-void SocketClient_sendStatus(JsonDoc &status) {
-    status.clear();
+void SocketClient_sendStatus(JsonDoc status) {
     status["message"] = "hello";
 }
 
-void SocketClient_receivedCommand(JsonDoc &doc) {
+void SocketClient_receivedCommand(JsonDoc doc) {
     String stringData = "";
     serializeJson(doc, stringData);
     MY_LOGD(WS_TAG, "%s", stringData.c_str());
 }
 
-void SocketClient_entityChanged(JsonDoc &doc) {
+void SocketClient_entityChanged(JsonDoc doc) {
     String stringData = "";
     serializeJson(doc, stringData);
     MY_LOGD(WS_TAG, "%s", stringData.c_str());
 }
 
-void SocketClient_connected(JsonDoc &doc) {
+void SocketClient_connected(JsonDoc doc) {
     String stringData = "";
     serializeJson(doc, stringData);
     MY_LOGD(WS_TAG, "%s", stringData.c_str());
@@ -78,7 +77,7 @@ void SocketClient_connected(JsonDoc &doc) {
 
 SocketClient *globalSC = nullptr;
 
-SocketClient::SocketClient() : _nvsManager(nullptr), _wifiManager(nullptr), _webserverManager(nullptr), _otaManager(nullptr) {
+SocketClient::SocketClient() : _doc(JSON_SIZE), _nvsManager(nullptr), _wifiManager(nullptr), _webserverManager(nullptr), _otaManager(nullptr) {
     static int count = 0;
     count++;
     if (count > 1) {
@@ -95,13 +94,15 @@ SocketClient::SocketClient() : _nvsManager(nullptr), _wifiManager(nullptr), _web
 }
 
 SocketClient::~SocketClient() {
-    globalSC = nullptr;
+	globalSC = nullptr;
     delete _wifiManager;
     _wifiManager = nullptr;
     delete _nvsManager;
     _nvsManager = nullptr;
     delete _webserverManager;
     _webserverManager = nullptr;
+	delete _otaManager;
+	_otaManager = nullptr;
 }
 
 void SocketClient::sendLog(const String &message) {
@@ -122,12 +123,12 @@ void SocketClient::sendNotification(const String &message) {
     if (!webSocket.isConnected())
         return;
 
-    JsonDoc docToSend;
-    docToSend["message"] = "notification";
-    docToSend["body"] = message;
+	_doc.clear();
+    _doc["message"] = "notification";
+    _doc["body"] = message;
 
     String textToSend = "";
-    serializeJson(docToSend, textToSend);
+    serializeJson(_doc, textToSend);
     MY_LOGD(WS_TAG, "Sending notification: %s", textToSend.c_str());
     webSocket.sendTXT(textToSend);
 }
@@ -136,35 +137,37 @@ void SocketClient::sendNotification(const String &message, const JsonDoc &doc) {
     if (!webSocket.isConnected())
         return;
 
-    JsonDoc docToSend;
-    docToSend["message"] = "notification";
-    docToSend["body"] = message;
-    docToSend["options"] = doc;
+	_doc.clear();
+    _doc["message"] = "notification";
+    _doc["body"] = message;
+    _doc["options"] = doc;
 
     String textToSend = "";
-    serializeJson(docToSend, textToSend);
+    serializeJson(_doc, textToSend);
     MY_LOGD(WS_TAG, "Sending notification: %s", textToSend.c_str());
     webSocket.sendTXT(textToSend);
 }
 
 void SocketClient::gotMessageSocket(uint8_t *payload) {
-    JsonDoc doc;
     MY_LOGD(WS_TAG, "Got data: %s\n", payload);
-    deserializeJson(doc, payload);
-    if (strcmp(doc["message"], "connected") == 0) {
-        if (!doc["data"].isNull()) {
-            JsonDoc doc2;
-            deserializeJson(doc2, doc["data"]);
-            connected(doc2);
-        }
-    } else if (strcmp(doc["message"], "command") == 0) {
-        receivedCommand(doc);
-    } else if (strcmp(doc["message"], "askStatus") == 0) {
+    deserializeJson(_doc, payload);
+    if (strcmp(_doc["message"], "connected") == 0) {
+		// TODO: here _doc["data"] is a string. Convert this to json before sending it. (Change in server side)
+		// can i check if _doc["data"] is a string?
+		
+		if (!_doc["data"].isNull()) {
+			DynamicJsonDocument tempDoc(2024);
+			deserializeJson(tempDoc, _doc["data"]);
+			connected(tempDoc);
+		}
+    } else if (strcmp(_doc["message"], "command") == 0) {
+		receivedCommand(_doc);
+    } else if (strcmp(_doc["message"], "askStatus") == 0) {
         sendStatusWithSocket();
-    } else if (strcmp(doc["message"], "entityChanged") == 0) {
-        entityChanged(doc);
-    } else if (strcmp(doc["message"], "update") == 0) {
-        String updateURL = doc["url"];
+    } else if (strcmp(_doc["message"], "entityChanged") == 0) {
+        entityChanged(_doc);
+    } else if (strcmp(_doc["message"], "update") == 0) {
+        String updateURL = _doc["url"];
         MY_LOGD(WS_TAG, "Update URL: %s", updateURL.c_str());
         _otaManager->startOTA(updateURL);
     }
@@ -173,23 +176,19 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
 void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
     if (!webSocket.isConnected())
         return;
-
-    JsonDoc responseDoc;
-
-    responseDoc["message"] = "returningStatus";
-    JsonDoc data;
-    sendStatus(data);
-    responseDoc["data"] = data;
-    responseDoc["save"] = save;
+	_doc.clear();
+    _doc["message"] = "returningStatus";
+    _doc.createNestedObject("data");
+    sendStatus(_doc["data"]);
+    _doc["save"] = save;
 
     String JsonToSend = "";
-    serializeJson(responseDoc, JsonToSend);
+    serializeJson(_doc, JsonToSend);
     MY_LOGD(WS_TAG, "Returning status: %s", JsonToSend.c_str());
     webSocket.sendTXT(JsonToSend);
 }
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
-    //- WebSocketsClient &wsc = globalSC->webSocket;
     switch (type) {
         case WStype_ERROR:
             MY_LOGD(WS_TAG, "Error! : %s", payload);
@@ -200,23 +199,28 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
             globalSC->last_png = 0;
             break;
         case WStype_CONNECTED: {
+            globalSC->_doc.clear();
             globalSC->last_dog = millis();
             globalSC->last_png = millis();
-            JsonDoc doc;
-            MY_LOGD(WS_TAG, "Connected to url: %s", payload);
-            // send message to server when Connected
-            doc["message"] = "connect";
-            doc["deviceId"] = globalSC->_wifiManager->getMacAddress();
-            doc["deviceApp"] = globalSC->_deviceApp;
-            doc["deviceType"] = globalSC->_deviceType;
-            doc["version"] = globalSC->_version;
-            doc["localIP"] = globalSC->_wifiManager->getIP();
-            doc["token"] = globalSC->_token;
+            // MY_LOGD(WS_TAG, "Connected to url: %s", payload);
+            // Prepare and send a "connect" message
+            globalSC->_doc["message"] = "connect";
+            globalSC->_doc["deviceId"] = globalSC->_wifiManager->getMacAddress();
+            globalSC->_doc["deviceApp"] = globalSC->_deviceApp;
+            globalSC->_doc["deviceType"] = globalSC->_deviceType;
+            globalSC->_doc["version"] = globalSC->_version;
+            globalSC->_doc["localIP"] = globalSC->_wifiManager->getIP();
+            globalSC->_doc["token"] = globalSC->_token;
             String JsonToSend = "";
-            serializeJson(doc, JsonToSend);
+            serializeJson(globalSC->_doc, JsonToSend);
             globalSC->last_reconnect = 0;
             globalSC->reconnect_time = 30000;
-            globalSC->webSocket.sendTXT(JsonToSend);
+            bool result = globalSC->webSocket.sendTXT(JsonToSend);
+            if (result) {
+                MY_LOGD(WS_TAG, "Connected to the server!");
+            } else {
+                MY_LOGE(WS_TAG, "Failed to send connection message");
+            }
         } break;
         case WStype_TEXT: {
             globalSC->last_dog = millis();
@@ -225,23 +229,16 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
         case WStype_BIN:
             globalSC->last_dog = millis();
             MY_LOGD(WS_TAG, "Get binary length: %u", length);
-            // hexdump(payload, length);
-            // send data to server
-            // webSocket.sendBIN(payload, length);
             break;
         case WStype_FRAGMENT_TEXT_START:
-            break;
         case WStype_FRAGMENT_BIN_START:
-            break;
         case WStype_FRAGMENT:
-            break;
         case WStype_FRAGMENT_FIN:
+            // Not handled
             break;
         case WStype_PING:
             MY_LOGV2(".");
-            globalSC->last_png = millis();  //- got ping from server
-            //- globalSC->last_dog = millis();
-            //- care only of your own pongs...
+            globalSC->last_png = millis();
             break;
         case WStype_PONG:
             MY_LOGV2("-");

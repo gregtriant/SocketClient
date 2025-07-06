@@ -4,7 +4,6 @@
 #include <WebSocketsClient.h>
 #include <WiFiClientSecure.h>
 
-
 #if defined(ESP32) || defined(LIBRETUYA)
 #include <AsyncTCP.h>
 #include <DNSServer.h>
@@ -27,7 +26,6 @@
 #include "WebserverManager/WebserverManager.h"
 #include "WifiManager/WifiManager.h"
 
-
 /**
  * @brief Configuration structure for the SocketClient.
  * This structure holds various settings for the SocketClient, including device
@@ -48,10 +46,10 @@ typedef struct {
     const bool handleWifi;  // the socket client will handle wifi connection
 
     /* functions */
-    void (*sendStatus)(JsonDoc &doc);       // function to send status
-    void (*receivedCommand)(JsonDoc &doc);  // function to handle received commands
-    void (*entityChanged)(JsonDoc &doc);    // function to handle entity changes
-    void (*connected)(JsonDoc &doc);        // function to handle connection events
+    SendStatusFunction sendStatus;
+    ReceivedCommandFunction receivedCommand;
+    EntityChangedFunction entityChanged;
+    ConnectedFunction connected;
 } SocketClientConfig;
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
@@ -67,6 +65,7 @@ class SocketClient {
     WifiManager *_wifiManager;
     WebserverManager *_webserverManager;
     OTAManager *_otaManager;
+    DynamicJsonDocument _doc;  //- used to store the JSON data
 
     // data
     float _version = 0.2;  // change
