@@ -29,7 +29,7 @@ auto send_data_timer = timer_create_default();
 DHTData readDHT();
 LightSensorData readLightSensor();
 
-void sendStatus(JsonDoc &status)
+void sendStatus(JsonDoc status)
 {
   status.clear();
   DHTData dhtData = readDHT();
@@ -41,7 +41,7 @@ void sendStatus(JsonDoc &status)
   status["Light %"] = lightSensorData.lightSensorPercentage;
 }
 
-void receivedCommand(JsonDoc &doc)
+void receivedCommand(JsonDoc doc)
 {
   if (strcmp(doc["data"], "count") == 0)
   {
@@ -49,7 +49,7 @@ void receivedCommand(JsonDoc &doc)
   }
 }
 
-void entityChanged(JsonDoc &doc)
+void entityChanged(JsonDoc doc)
 {
   // String stringData = "";
   // serializeJson(doc, stringData);
@@ -76,18 +76,13 @@ void setup()
 
   Serial.begin(115200);
   delay(1000);
-
-
-  testClient.initWifi();
-  testClient.setLedPin(LED_PIN); // set the led pin to blink when connected
-
   testClient.setAppAndVersion("Solar", VERSION);
   testClient.setToken(token);
   testClient.setSendStatusFunction(sendStatus);
   testClient.setReceivedCommandFunction(receivedCommand);
   testClient.setEntityChangedFunction(entityChanged);
 
-  testClient.setConnectedFunction([](JsonDoc &doc) {
+  testClient.setConnectedFunction([] (JsonDoc doc) {
     Serial.print("Connected data:  ");
     serializeJson(doc, Serial);
     Serial.println();
@@ -99,8 +94,6 @@ void setup()
     testClient.sendStatusWithSocket(true);
   });
 
-  testClient.initWifi();
-  testClient.setLedPin(LED_BUILTIN);
   testClient.init("api.sensordata.space", 443, true); // if you dont want ssl use .init and change the port.
   
   
