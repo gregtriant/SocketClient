@@ -152,13 +152,18 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
     MY_LOGD(WS_TAG, "Got data: %s\n", payload);
     deserializeJson(_doc, payload);
     if (strcmp(_doc["message"], "connected") == 0) {
-		// TODO: here _doc["data"] is a string. Convert this to json before sending it. (Change in server side)
-		// can i check if _doc["data"] is a string?
-		
 		if (!_doc["data"].isNull()) {
-			DynamicJsonDocument tempDoc(2024);
-			deserializeJson(tempDoc, _doc["data"]);
-			connected(tempDoc);
+            // check if _doc["data"] is a string
+            if (_doc["data"].is<const char *>()) {
+                MY_LOGD(WS_TAG, "data is string");
+                // TODO: remove this when the server is fixed and all the devices are updated
+                DynamicJsonDocument tempDoc(2024);
+                deserializeJson(tempDoc, _doc["data"]);
+                connected(tempDoc);
+            } else {
+                MY_LOGD(WS_TAG, "data is json");
+                connected(_doc["data"]);
+            }
 		}
     } else if (strcmp(_doc["message"], "command") == 0) {
 		receivedCommand(_doc);
