@@ -19,7 +19,7 @@ bool SocketClient::watchdog(void *vv) {
     WebSocketsClient &wsc = sc->webSocket;
     if (!wsc.isConnected() && (last_reconnect == 0 || (millis() - last_reconnect) > reconnect_time)) {
         unsigned int x = millis() / (60000);
-        MY_LOGD(WS_TAG, "%ld", x);
+        MY_LOGD(WS_TAG, "%u", x);
         MY_LOGD(WS_TAG, "* reconnect *\n");
         last_reconnect = millis();
         reconnect_time += 60000;
@@ -77,7 +77,7 @@ void SocketClient_connected(JsonDoc doc) {
 
 SocketClient *globalSC = nullptr;
 
-SocketClient::SocketClient() : _doc(JSON_SIZE), _nvsManager(nullptr), _wifiManager(nullptr), _webserverManager(nullptr), _otaManager(nullptr) {
+SocketClient::SocketClient() : _nvsManager(nullptr), _wifiManager(nullptr), _webserverManager(nullptr), _otaManager(nullptr), _doc(JSON_SIZE) {
     static int count = 0;
     count++;
     if (count > 1) {
@@ -120,8 +120,9 @@ void SocketClient::sendLog(const String &message) {
 }
 
 void SocketClient::sendNotification(const String &message) {
-    if (!webSocket.isConnected())
+    if (!webSocket.isConnected()) {
         return;
+    }
 
 	_doc.clear();
     _doc["message"] = "notification";
@@ -134,8 +135,9 @@ void SocketClient::sendNotification(const String &message) {
 }
 
 void SocketClient::sendNotification(const String &message, const JsonDoc &doc) {
-    if (!webSocket.isConnected())
+    if (!webSocket.isConnected()) {
         return;
+    }
 
 	_doc.clear();
     _doc["message"] = "notification";
@@ -149,7 +151,7 @@ void SocketClient::sendNotification(const String &message, const JsonDoc &doc) {
 }
 
 void SocketClient::gotMessageSocket(uint8_t *payload) {
-    MY_LOGD(WS_TAG, "Got data: %s\n", payload);
+    MY_LOGD(WS_TAG, "Got data: %s", payload);
     deserializeJson(_doc, payload);
     if (strcmp(_doc["message"], "connected") == 0) {
 		if (!_doc["data"].isNull()) {
@@ -179,8 +181,9 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
 }
 
 void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
-    if (!webSocket.isConnected())
+    if (!webSocket.isConnected()) {
         return;
+    }
 	_doc.clear();
     _doc["message"] = "returningStatus";
     _doc.createNestedObject("data");
@@ -327,8 +330,8 @@ void SocketClient::init(const char *socketHostURL, int port, bool _isSSL) {
 void SocketClient::loop() {
     if (_handleWifi) {
         _wifiManager->loop();
+        _webserverManager->loop();
     }
 
-    _webserverManager->loop();
     webSocket.loop();
 }

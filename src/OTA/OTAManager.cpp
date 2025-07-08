@@ -108,10 +108,10 @@ void OTAManager::updatingMode(String updateURL)
   {
     WiFiClient client;
     ESPhttpUpdate.setLedPin(LED_BUILTIN, LOW);
-    ESPhttpUpdate.onStart(SocketClient::update_started);
-    ESPhttpUpdate.onEnd(SocketClient::update_finished);
-    // ESPhttpUpdate.onProgress(SocketClient::update_progress);
-    ESPhttpUpdate.onError(SocketClient::update_error);
+    ESPhttpUpdate.onStart(OTAManager::update_started);
+    ESPhttpUpdate.onEnd(OTAManager::update_finished);
+    // ESPhttpUpdate.onProgress(OTAManager::update_progress);
+    ESPhttpUpdate.onError(OTAManager::update_error);
 
     t_httpUpdate_return ret = ESPhttpUpdate.update(client, updateURL); // t_httpUpdate_return ret = ESPhttpUpdate.update(client, "server", 80, "file.bin");
     switch (ret)

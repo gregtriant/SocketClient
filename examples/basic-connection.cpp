@@ -1,172 +1,97 @@
 #include <Arduino.h>
-#include <arduino-timer.h>
-#include "SocketClient.h"
+#include <SocketClient.h>
+
 #include "globals.h"
-#include "DHT.h"
 
 #define VERSION 1.0
 
-#define LED_PIN 33
-#define LIGHT_SENSOR_PIN 35
-#define DHTPIN 32
-#define DHTTYPE DHT11
+#ifdef LED_BUILTIN
+#define LED_PIN LED_BUILTIN
+#else
+#define LED_PIN 2
+#endif
 
-typedef struct {
-  int lightSensorValue;        // Raw value from the light sensor (0-4095 for 12-bit ADC)
-  float lightSensorPercentage; // Percentage of light (0-100%)
-} LightSensorData;
-typedef struct {
-  float temperature; // Temperature in Celsius
-  float humidity;    // Humidity in percentage
-  float heatIndex;   // Heat index in Celsius
-} DHTData;
+const char *my_ssid = "your_wifi_ssid";          // replace with your WiFi SSID
+const char *my_password = "your_wifi_password";  // replace with your WiFi password
+const char *token = "your_token";                // replace with your device token from sensordata.space
 
-DHT dht(DHTPIN, DHTTYPE);
 SocketClient testClient;
-auto send_data_timer = timer_create_default();
+int counter = 0;
 
-// functions
-DHTData readDHT();
-LightSensorData readLightSensor();
+void sendStatus(JsonDoc status) { status["counter"] = counter; }
 
-void sendStatus(JsonDoc status)
-{
-  status.clear();
-  DHTData dhtData = readDHT();
-  LightSensorData lightSensorData = readLightSensor();
-  status["Temperature C"] = dhtData.temperature;
-  status["Humidity %"] = dhtData.humidity;
-  status["HeatIndex C"] = dhtData.heatIndex;
-  status["LightValue"] = lightSensorData.lightSensorValue;
-  status["Light %"] = lightSensorData.lightSensorPercentage;
-}
-
-void receivedCommand(JsonDoc doc)
-{
-  if (strcmp(doc["data"], "count") == 0)
-  {
+void receivedCommand(JsonDoc doc) {
+    if (strcmp(doc["data"], "counterInc") == 0) {
+        counter++;
+    } else if (strcmp(doc["data"], "counterDec") == 0) {
+        counter--;
+    }
     testClient.sendStatusWithSocket();
-  }
 }
 
-void entityChanged(JsonDoc doc)
-{
-  // String stringData = "";
-  // serializeJson(doc, stringData);
-  // Serial.print("Entity update: ");
-  // Serial.println(stringData);
-  if (strcmp(doc["entity"], "led") == 0)
-  {
-    // setLedState(atoi(doc["value"]));
-  }
-  else if (strcmp(doc["entity"], "slider") == 0)
-  {
-    // setSliderState(doc["value"]);
+void entityChanged(JsonDoc doc) {
+    if (strcmp(doc["entity"], "counter") == 0) {
+        counter = doc["value"].as<int>();
+    }
     testClient.sendStatusWithSocket();
-  }
 }
 
-bool sendStatusNow(void* context) {
-  testClient.sendStatusWithSocket(true);
-  return true; // return true to keep the timer running
-}
-
-void setup()
-{
-
-  Serial.begin(115200);
-  delay(1000);
-  testClient.setAppAndVersion("Solar", VERSION);
-  testClient.setToken(token);
-  testClient.setSendStatusFunction(sendStatus);
-  testClient.setReceivedCommandFunction(receivedCommand);
-  testClient.setEntityChangedFunction(entityChanged);
-
-  testClient.setConnectedFunction([] (JsonDoc doc) {
+void connected(JsonDoc doc) {
     Serial.print("Connected data:  ");
     serializeJson(doc, Serial);
     Serial.println();
     // do something with the connected data
 
-    // send connected notification
-    doc.clear();
     testClient.sendNotification("Connected!");
     testClient.sendStatusWithSocket(true);
-  });
-
-  testClient.init("api.sensordata.space", 443, true); // if you dont want ssl use .init and change the port.
-  
-  
-  dht.begin();
-  send_data_timer.every(5*60*1000, sendStatusNow, nullptr);
 }
 
 
-void loop()
-{
-  testClient.loop();
-  send_data_timer.tick();
+/**
+ * Configuration for the SocketClient
+ */
+SocketClientConfig config = {
+    .name = "TestEsp8266",
+    .version = VERSION,
+    .type = "ESP32",
+    .ledPin = LED_PIN,
+    .host = "api.sensordata.space",
+    .port = 443,
+    .isSSL = true,
+    .token = token,    // from globals.h
+    .handleWifi = true,
+    .sendStatus = sendStatus,
+    .receivedCommand = receivedCommand,
+    .entityChanged = entityChanged,
+    .connected = connected,
+};
+
+
+void setup() {
+    Serial.begin(115200);
+    delay(500);
+
+    // connect wifi
+    // Serial.print("Connecting to WiFi: ");
+    // WiFi.begin(my_ssid, my_password);
+    // while (WiFi.status() != WL_CONNECTED) {
+    //     Serial.print(".");
+    //     delay(500);
+    // }
+    // Serial.println("Connected!");
+    // Serial.print("IP address: ");
+    // Serial.println(WiFi.localIP());
+
+    // testClient.setAppAndVersion("TestEsp8266", VERSION);
+    // testClient.setToken(token);
+    // testClient.setSendStatusFunction(sendStatus);
+    // testClient.setReceivedCommandFunction(receivedCommand);
+    // testClient.setEntityChangedFunction(entityChanged);
+    // testClient.setConnectedFunction(connected);
+    // testClient.init("api.sensordata.space", 443, true);  // if you dont want ssl use .init and change the port.
+
+    // or just 
+    testClient.init(&config);
 }
 
-
-LightSensorData readLightSensor()
-{
-  delay(2000);
-  // read the light sensor value
-  int lightValue = analogRead(LIGHT_SENSOR_PIN);
-  float percentage = (lightValue / 4095.0) * 100; // Assuming a 12-bit ADC (0-4095)
-  // send the light value to the server
-  Serial.print("Light: ");
-  Serial.println(lightValue);
-  Serial.print("Light %: ");
-  Serial.println(percentage);
-
-  LightSensorData lightSensorData = {
-    .lightSensorValue = lightValue,
-    .lightSensorPercentage = percentage,
-  };
-
-  return lightSensorData;
-}
-
-DHTData readDHT() {
-  delay(2000);
-
-  // Reading temperature or humidity takes about 250 milliseconds!
-  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
-  float h = dht.readHumidity();
-  // Read temperature as Celsius (the default)
-  float t = dht.readTemperature();
-  // Read temperature as Fahrenheit (isFahrenheit = true)
-
-  // Check if any reads failed and exit early (to try again).
-  DHTData dhtData = {
-    .temperature = 0,
-    .humidity = 0,
-    .heatIndex = 0,
-  };
-  if (isnan(h) || isnan(t)) {
-    Serial.println(F("Failed to read from DHT sensor!"));
-    return dhtData;
-  }
-
-  // Compute heat index in Celsius (isFahreheit = false)
-  float hic = dht.computeHeatIndex(t, h, false);
-
-  Serial.print(F("Humidity: "));
-  Serial.print(h);
-  Serial.print(F("%  Temperature: "));
-  Serial.print(t);
-  Serial.print(F("°C  Heat index: "));
-  Serial.print(hic);
-  Serial.print(F("°C "));
-
-  dhtData = {
-    .temperature = t,
-    .humidity = h,
-    .heatIndex = hic,
-  };
-  
-  return dhtData;
-}
-
+void loop() { testClient.loop(); }
