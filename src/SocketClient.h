@@ -5,13 +5,11 @@
 #include <WiFiClientSecure.h>
 
 #if defined(ESP32) || defined(LIBRETUYA)
-#include <AsyncTCP.h>
 #include <DNSServer.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
 
 #elif defined(ESP8266)
-#include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266httpUpdate.h>
 #include <Preferences.h>

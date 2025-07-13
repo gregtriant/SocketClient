@@ -11,13 +11,11 @@
 #include <HTTPClient.h>
 #include <Update.h>
 #include <Preferences.h>
-#include <WebServer.h>
 #include <DNSServer.h>
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include <ESP8266httpUpdate.h>
 #include <Preferences.h>
-#include <ESP8266WebServer.h>
 #else
 #error Platform not supported
 #endif
@@ -64,6 +62,4 @@ public:
         _wifi_password = password;
         _nvsManager->saveWifiCredentials(ssid, password);
     }
-
-    // void setInternetRestoredCallback(std::function<void()> cb) { _onInternetRestored = cb; }
 };

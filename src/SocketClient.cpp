@@ -193,7 +193,8 @@ void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
     String JsonToSend = "";
     serializeJson(_doc, JsonToSend);
     MY_LOGD(WS_TAG, "Returning status: %s", JsonToSend.c_str());
-    webSocket.sendTXT(JsonToSend);
+    // webSocket.sendTXT(JsonToSend);
+    _webserverManager->publishStatus(JsonToSend);  //- publish status to webserver if available
 }
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
@@ -294,7 +295,7 @@ void SocketClient::_init() {
     _wifiManager = new WifiManager(_nvsManager, ap_ssid, ap_password, [this]() { this->reconnect(); }, [this]() { this->stopReconnect(); });
     if (_handleWifi) {
         _wifiManager->init();
-        _webserverManager = new WebserverManager(_wifiManager);
+        _webserverManager = new WebserverManager(_wifiManager, sendStatus, receivedCommand, entityChanged);
     }
 
     _otaManager = new OTAManager();
