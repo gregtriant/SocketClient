@@ -109,12 +109,12 @@ void SocketClient::sendLog(const String &message) {
     if (!webSocket.isConnected())
         return;
 
-    JsonDoc docToSend;
-    docToSend["message"] = "@log";
-    docToSend["text"] = message;
+    _doc.clear();
+    _doc["message"] = "@log";
+    _doc["text"] = message;
 
     String textToSend = "";
-    serializeJson(docToSend, textToSend);
+    serializeJson(_doc, textToSend);
     MY_LOGD(WS_TAG, "Sending Log: %s", textToSend.c_str());
     webSocket.sendTXT(textToSend);
 }
