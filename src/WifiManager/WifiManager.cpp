@@ -9,7 +9,7 @@ WifiManager::WifiManager(NVSManager *nvsManager, const String& ap_ssid, const St
     _ap_password = ap_password;
     _onInternetRestored = onInternetRestored;
     _onInternetLost = onInternetLost;
-    
+
     _mac_address = WiFi.macAddress();
     _local_ip = WiFi.localIP().toString(); // in case already connected to wifi
     _nvsManager->getWifiCredentials(_wifi_ssid, _wifi_password);
@@ -36,22 +36,22 @@ void WifiManager::loop()
     uint64_t now = millis();
     wl_status_t wifiStatus = WiFi.status();
     int wifiMode = (int)WiFi.getMode();
-        
-    if ((_wifi_status != WL_CONNECTION_LOST) && 
-        (_wifi_status != WL_DISCONNECTED) &&  
+
+    if ((_wifi_status != WL_CONNECTION_LOST) && // Prev status
+        (_wifi_status != WL_DISCONNECTED) &&    // Prev status
         (wifiStatus == WL_CONNECTION_LOST || wifiStatus == WL_DISCONNECTED)) {
 
         MY_LOGI(WIFI_TAG, "WiFi connection lost or disconnected. Trying to reconnect...");
         _wifi_status = wifiStatus;
-        _ap_time = now; // reset AP time
+        _ap_time = now; // Reset AP time.
         if (_onInternetLost) {
             _onInternetLost();
         }
-    } else if ((_wifi_status != WL_CONNECTED) && 
+    } else if ((_wifi_status != WL_CONNECTED) &&
                (wifiStatus == WL_CONNECTED)) {
         _wifiConnected();
     }
-    
+
     if (now - _ap_time > 30000 && wifiStatus != WL_CONNECTED) { // if in AP mode for more than 30 sec, try to connect with old credentials
         _ap_time = now;
         MY_LOGI(WIFI_TAG, "30 seconds in ap mode... Connecting...");
@@ -132,8 +132,45 @@ void WifiManager::_initAPMode()
 
     MY_LOGI(WIFI_TAG, "Starting AP+STA mode... IP: %s", WiFi.softAPIP().toString().c_str());
 
-
     _ap_time = millis();
+}
+
+
+void WifiManager::_scanNetworks()
+{
+    // scan wifi
+    int n = WiFi.scanNetworks();
+    if (n == 0) {
+        Serial.println("No networks found.");
+    } else {
+        Serial.printf("%d networks found:\n\n", n);
+
+        // Store SSIDs for duplicate detection
+        for (int i = 0; i < n; ++i) {
+        Serial.printf("Network %d: %s | RSSI: %d | Channel: %d | BSSID: %s | Encryption: %s\n",
+            i + 1,
+            WiFi.SSID(i).c_str(),
+            WiFi.RSSI(i),
+            WiFi.channel(i),
+            WiFi.BSSIDstr(i).c_str(),
+            (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? "Open" : "Secured"
+        );
+        }
+
+        Serial.println("\nChecking for duplicate SSIDs...");
+        for (int i = 0; i < n; ++i) {
+        for (int j = i + 1; j < n; ++j) {
+            if (WiFi.SSID(i) == WiFi.SSID(j)) {
+            Serial.printf("⚠️ Duplicate SSID found: %s (Channels %d & %d, BSSIDs %s and %s)\n",
+                WiFi.SSID(i).c_str(),
+                WiFi.channel(i), WiFi.channel(j),
+                WiFi.BSSIDstr(i).c_str(),
+                WiFi.BSSIDstr(j).c_str()
+            );
+            }
+        }
+        }
+    }
 }
 
 

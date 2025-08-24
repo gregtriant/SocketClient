@@ -47,6 +47,7 @@ protected:
     void _wifiConnected();
     void _connectingToWifi(String ssid, String password);
     void _initAPMode();
+    void _scanNetworks();
 
     std::function<void()> _onInternetRestored;
     std::function<void()> _onInternetLost;
