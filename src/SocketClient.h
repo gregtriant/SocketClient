@@ -117,7 +117,11 @@ class SocketClient {
     void init(const char *socketHostURL, int port, bool _isSSL);
     void loop();
 
-    // setters
+    // Getters.
+    String getCurrentStatus();
+    String getVersion();
+
+    // Setters.
     void setAppAndVersion(const char *deviceApp, float version) {
         this->_deviceApp = deviceApp;
         this->_version = version;
@@ -140,4 +144,5 @@ class SocketClient {
     void setConnectedFunction(ConnectedFunction func) { this->connected = func; }
 
     void setToken(const char *token) { this->_token = token; }
+
 };

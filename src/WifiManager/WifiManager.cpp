@@ -147,13 +147,12 @@ void WifiManager::_scanNetworks()
 
         // Store SSIDs for duplicate detection
         for (int i = 0; i < n; ++i) {
-        Serial.printf("Network %d: %s | RSSI: %d | Channel: %d | BSSID: %s | Encryption: %s\n",
+        Serial.printf("Network %d: %s | RSSI: %d | Channel: %d | BSSID: %s\n",
             i + 1,
             WiFi.SSID(i).c_str(),
             WiFi.RSSI(i),
             WiFi.channel(i),
-            WiFi.BSSIDstr(i).c_str(),
-            (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? "Open" : "Secured"
+            WiFi.BSSIDstr(i).c_str()
         );
         }
 

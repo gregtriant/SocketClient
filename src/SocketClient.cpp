@@ -294,7 +294,9 @@ void SocketClient::_init() {
     _wifiManager = new WifiManager(_nvsManager, ap_ssid, ap_password, [this]() { this->reconnect(); }, [this]() { this->stopReconnect(); });
     if (_handleWifi) {
         _wifiManager->init();
-        _webserverManager = new WebserverManager(_wifiManager);
+        _webserverManager = new WebserverManager(_wifiManager,
+                                                [this]() { return this->getCurrentStatus(); },
+                                                [this]() { return this->getVersion(); });
     }
 
     _otaManager = new OTAManager();
@@ -334,4 +336,20 @@ void SocketClient::loop() {
     }
 
     webSocket.loop();
+}
+
+String SocketClient::getCurrentStatus() {
+    _doc.clear();
+    sendStatus(_doc);
+    String JsonToSend = "";
+    serializeJson(_doc, JsonToSend);
+    return JsonToSend;
+}
+
+String SocketClient::getVersion() {
+    _doc.clear();
+    _doc["version"] = _version;
+    String JsonToSend = "";
+    serializeJson(_doc, JsonToSend);
+    return JsonToSend;
 }

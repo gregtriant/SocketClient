@@ -27,11 +27,15 @@ protected:
     void _setupWebServer();
     void _handleRoot();
     void _handleWifiConnect();
+    void _handleVersion();
+
+    std::function<String()> _getCurrentStatus = nullptr;
+    std::function<String()> _getVersion = nullptr;
     // void _handleWifiLeave();
     // void _handleWifiScan();
 
 public:
-    WebserverManager(WifiManager *wifiManager);
+    WebserverManager(WifiManager *wifiManager, std::function<String()> getCurrentStatus, std::function<String()> getVersion);
 
     void loop();
 };
