@@ -26,31 +26,7 @@
 #include "WebserverManager/WebserverManager.h"
 #include "WifiManager/WifiManager.h"
 
-/**
- * @brief Configuration structure for the SocketClient.
- * This structure holds various settings for the SocketClient, including device
- * settings, server settings, and function pointers for handling events.
- */
-typedef struct {
-    /* device settings */
-    const char *name;     // name of the app
-    const float version;  // version of the app
-    const char *type;     // type of the device (e.g. ESP32, ESP8266)
-    const int ledPin;     // pin for the LED (optional, can be -1 if not used)
 
-    /* server settings */
-    const char *host;       // host of the socket server
-    const int port;         // port of the socket server
-    const bool isSSL;       // is the socket server using SSL
-    const char *token;      // token for authentication
-    const bool handleWifi;  // the socket client will handle wifi connection
-
-    /* functions */
-    SendStatusFunction sendStatus;
-    ReceivedCommandFunction receivedCommand;
-    EntityChangedFunction entityChanged;
-    ConnectedFunction connected;
-} SocketClientConfig;
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
 
@@ -77,6 +53,8 @@ class SocketClient {
     int _port = DEFAULT_PORT;
     bool _isSSL;
 
+    DeviceInfo_t _deviceInfo;
+
     String _macAddress;
     String _localIP;
     bool _handleWifi = false;
@@ -100,7 +78,7 @@ class SocketClient {
     static const unsigned long max_reconnect_time = 600000L;  //- 10 min
     static const unsigned long watchdog_time = (5 * tick_time / 2);
 
-   public:
+public:
     SocketClient();
     ~SocketClient();
 
@@ -113,7 +91,7 @@ class SocketClient {
     bool isConnected() { return webSocket.isConnected(); }
     void disconnect() { webSocket.disconnect(); }
 
-    void init(const SocketClientConfig *config);
+    void init(const SocketClientConfig_t *config);
     void init(const char *socketHostURL, int port, bool _isSSL);
     void loop();
 
@@ -125,9 +103,18 @@ class SocketClient {
     void setAppAndVersion(const char *deviceApp, float version) {
         this->_deviceApp = deviceApp;
         this->_version = version;
+
+        // Just saving the name and version in deviceInfo.
+        this->_deviceInfo.name = deviceApp;
+        this->_deviceInfo.version = version;
     }
 
-    void setDeviceType(const char *deviceType) { this->_deviceType = deviceType; }
+    void setDeviceType(const char *deviceType) {
+        this->_deviceType = deviceType;
+
+        // Just saving the type in deviceInfo.
+        this->_deviceInfo.type = deviceType;
+    }
 
     void setSocketHost(const char *socketHostURL, int port, bool _isSSL) {
         this->_socketHostURL = socketHostURL;

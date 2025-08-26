@@ -50,7 +50,7 @@ void connected(JsonDoc doc) {
 /**
  * Configuration for the SocketClient
  */
-SocketClientConfig config = {
+SocketClientConfig_t config = {
     .name = "TestEsp8266",
     .version = VERSION,
     .type = "ESP32",

@@ -295,8 +295,8 @@ void SocketClient::_init() {
     if (_handleWifi) {
         _wifiManager->init();
         _webserverManager = new WebserverManager(_wifiManager,
-                                                [this]() { return this->getCurrentStatus(); },
-                                                [this]() { return this->getVersion(); });
+                                                &_deviceInfo,
+                                                [this]() { return this->getCurrentStatus(); });
     }
 
     _otaManager = new OTAManager();
@@ -304,7 +304,7 @@ void SocketClient::_init() {
     reconnect();
 }
 
-void SocketClient::init(const SocketClientConfig *config) {
+void SocketClient::init(const SocketClientConfig_t *config) {
     RETURN_IF_NULLPTR(config);
     ASSIGN_IF_NOT_NULLPTR(_deviceApp, config->name);
     ASSIGN_IF_NOT_NULLPTR(_deviceType, config->type);
@@ -320,6 +320,11 @@ void SocketClient::init(const SocketClientConfig *config) {
     _port = config->port;
     _isSSL = config->isSSL;
     _handleWifi = config->handleWifi;
+
+    // Copy socket config to _deviceInfo.
+    _deviceInfo.name = config->name;
+    _deviceInfo.type = config->type;
+    _deviceInfo.version = config->version;
 
     _init();
 }

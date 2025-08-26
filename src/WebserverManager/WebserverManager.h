@@ -10,6 +10,7 @@
 #endif
 
 #include "../WifiManager/WifiManager.h"
+#include "../SocketClientDefs.h"
 
 class WebserverManager
 {
@@ -27,15 +28,11 @@ protected:
     void _setupWebServer();
     void _handleRoot();
     void _handleWifiConnect();
-    void _handleVersion();
+    DeviceInfo_t *_deviceInfo;
 
     std::function<String()> _getCurrentStatus = nullptr;
-    std::function<String()> _getVersion = nullptr;
-    // void _handleWifiLeave();
-    // void _handleWifiScan();
-
 public:
-    WebserverManager(WifiManager *wifiManager, std::function<String()> getCurrentStatus, std::function<String()> getVersion);
+    WebserverManager(WifiManager *wifiManager, DeviceInfo_t *deviceInfo, std::function<String()> getCurrentStatus);
 
     void loop();
 };

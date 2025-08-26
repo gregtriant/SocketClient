@@ -1,5 +1,4 @@
-#ifndef DEFS_H
-#define DEFS_H
+#pragma once
 #include <ArduinoJson.h>
 
 #if defined(ESP32) || defined(LIBRETUYA)
@@ -45,11 +44,13 @@
 #define DEFAULT_HOST "sensordata.space"
 #define DEFAULT_APP_NAME "SocketClient"
 
+
 /**
  * @brief JsonVariant does reference counting, no need to use &.
  * JsonVariant is a reference to a JsonDocument.
  */
 typedef JsonVariant JsonDoc;
+
 
 /**
  * @brief Function type definitions for the SocketClient library.
@@ -60,6 +61,39 @@ typedef std::function<void(JsonDoc doc)> SendStatusFunction;
 typedef std::function<void(JsonDoc doc)> ReceivedCommandFunction;
 typedef std::function<void(JsonDoc doc)> EntityChangedFunction;
 typedef std::function<void(JsonDoc doc)> ConnectedFunction;
+
+
+/**
+ * @brief Configuration structure for the SocketClient.
+ * This structure holds various settings for the SocketClient, including device
+ * settings, server settings, and function pointers for handling events.
+ */
+typedef struct {
+    /* device settings */
+    const char *name;     // name of the app
+    float version;        // version of the app
+    const char *type;     // type of the device (e.g. ESP32, ESP8266)
+    const int ledPin;     // pin for the LED (optional, can be -1 if not used)
+
+    /* server settings */
+    const char *host;       // host of the socket server
+    const int port;         // port of the socket server
+    const bool isSSL;       // is the socket server using SSL
+    const char *token;      // token for authentication
+    const bool handleWifi;  // the socket client will handle wifi connection
+
+    /* functions */
+    SendStatusFunction sendStatus;
+    ReceivedCommandFunction receivedCommand;
+    EntityChangedFunction entityChanged;
+    ConnectedFunction connected;
+} SocketClientConfig_t;
+
+typedef struct {
+    const char *name;
+    const char *type;
+    float version;
+} DeviceInfo_t;
 
 /**
  * Macros
@@ -77,5 +111,3 @@ typedef std::function<void(JsonDoc doc)> ConnectedFunction;
             return;               \
         }                         \
     } while (0)
-
-#endif  // DEFS_H
