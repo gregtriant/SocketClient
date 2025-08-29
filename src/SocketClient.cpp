@@ -3,6 +3,8 @@
 #include "Log/Log.h"
 #include "SocketClientDefs.h"
 
+#include <time.h>
+
 #ifndef UPDATE_SIZE_UNKNOWN
 #define UPDATE_SIZE_UNKNOWN 0xFFFFFFFF
 #endif
@@ -12,45 +14,45 @@ unsigned long SocketClient::last_png = 0;
 unsigned long SocketClient::last_reconnect = 0;
 unsigned long SocketClient::reconnect_time = 30000;  //- 30 sec
 
-bool SocketClient::watchdog(void *vv) {
-    SocketClient *sc = (SocketClient *)vv;
-    if (!sc)
-        return true;
-    WebSocketsClient &wsc = sc->webSocket;
-    if (!wsc.isConnected() && (last_reconnect == 0 || (millis() - last_reconnect) > reconnect_time)) {
-        unsigned int x = millis() / (60000);
-        MY_LOGD(WS_TAG, "%u", x);
-        MY_LOGD(WS_TAG, "* reconnect *\n");
-        last_reconnect = millis();
-        reconnect_time += 60000;
-        if (reconnect_time > max_reconnect_time)
-            reconnect_time = max_reconnect_time;
-        sc->reconnect();
-        return true;
-    }
+// bool SocketClient::watchdog(void *vv) {
+//     SocketClient *sc = (SocketClient *)vv;
+//     if (!sc)
+//         return true;
+//     WebSocketsClient &wsc = sc->webSocket;
+//     if (!wsc.isConnected() && (last_reconnect == 0 || (millis() - last_reconnect) > reconnect_time)) {
+//         unsigned int x = millis() / (60000);
+//         MY_LOGD(WS_TAG, "%u", x);
+//         MY_LOGD(WS_TAG, "* reconnect *\n");
+//         last_reconnect = millis();
+//         reconnect_time += 60000;
+//         if (reconnect_time > max_reconnect_time)
+//             reconnect_time = max_reconnect_time;
+//         sc->reconnect();
+//         return true;
+//     }
 
-    if (wsc.isConnected()) {
-        if (wsc.sendPing()) {
-            MY_LOGD(WS_TAG, "*");
-            // last_dog = millis();
-        } else {
-            // wsc.disconnect();
-            MY_LOGD(WS_TAG, "@");
-        }
-    }
+//     if (wsc.isConnected()) {
+//         if (wsc.sendPing()) {
+//             MY_LOGD(WS_TAG, "*");
+//             // last_dog = millis();
+//         } else {
+//             // wsc.disconnect();
+//             MY_LOGD(WS_TAG, "@");
+//         }
+//     }
 
-    if (last_dog > 0 && millis() - last_dog > watchdog_time) {
-        MY_LOGD(WS_TAG, "* watchdog time *\n");
-        wsc.disconnect();
-        return true;
-    }
-    if (last_png > 0 && millis() - last_png > watchdog_time) {
-        MY_LOGD(WS_TAG, "* png watchdog time *\n");
-        wsc.disconnect();
-        return true;
-    }
-    return true;
-}
+//     if (last_dog > 0 && millis() - last_dog > watchdog_time) {
+//         MY_LOGD(WS_TAG, "* watchdog time *\n");
+//         wsc.disconnect();
+//         return true;
+//     }
+//     if (last_png > 0 && millis() - last_png > watchdog_time) {
+//         MY_LOGD(WS_TAG, "* png watchdog time *\n");
+//         wsc.disconnect();
+//         return true;
+//     }
+//     return true;
+// }
 
 // Initialize default functions for the user
 void SocketClient_sendStatus(JsonDoc status) {
@@ -77,7 +79,14 @@ void SocketClient_connected(JsonDoc doc) {
 
 SocketClient *globalSC = nullptr;
 
-SocketClient::SocketClient() : _nvsManager(nullptr), _wifiManager(nullptr), _webserverManager(nullptr), _otaManager(nullptr), _doc(JSON_SIZE) {
+SocketClient::SocketClient() :
+    _webSocket(nullptr),
+    _nvsManager(nullptr),
+    _wifiManager(nullptr),
+    _webserverManager(nullptr),
+    _otaManager(nullptr),
+    _doc(JSON_SIZE)
+{
     static int count = 0;
     count++;
     if (count > 1) {
@@ -95,6 +104,11 @@ SocketClient::SocketClient() : _nvsManager(nullptr), _wifiManager(nullptr), _web
 
 SocketClient::~SocketClient() {
 	globalSC = nullptr;
+    if (_webSocket) {
+        _webSocket->disconnect();
+    }
+    delete _webSocket;
+    _webSocket = nullptr;
     delete _wifiManager;
     _wifiManager = nullptr;
     delete _nvsManager;
@@ -106,7 +120,7 @@ SocketClient::~SocketClient() {
 }
 
 void SocketClient::sendLog(const String &message) {
-    if (!webSocket.isConnected())
+    if (!_webSocket->isConnected())
         return;
 
     _doc.clear();
@@ -116,11 +130,11 @@ void SocketClient::sendLog(const String &message) {
     String textToSend = "";
     serializeJson(_doc, textToSend);
     MY_LOGD(WS_TAG, "Sending Log: %s", textToSend.c_str());
-    webSocket.sendTXT(textToSend);
+    _webSocket->sendTXT(textToSend);
 }
 
 void SocketClient::sendNotification(const String &message) {
-    if (!webSocket.isConnected()) {
+    if (!_webSocket->isConnected()) {
         return;
     }
 
@@ -131,11 +145,11 @@ void SocketClient::sendNotification(const String &message) {
     String textToSend = "";
     serializeJson(_doc, textToSend);
     MY_LOGD(WS_TAG, "Sending notification: %s", textToSend.c_str());
-    webSocket.sendTXT(textToSend);
+    _webSocket->sendTXT(textToSend);
 }
 
 void SocketClient::sendNotification(const String &message, const JsonDoc &doc) {
-    if (!webSocket.isConnected()) {
+    if (!_webSocket->isConnected()) {
         return;
     }
 
@@ -147,13 +161,22 @@ void SocketClient::sendNotification(const String &message, const JsonDoc &doc) {
     String textToSend = "";
     serializeJson(_doc, textToSend);
     MY_LOGD(WS_TAG, "Sending notification: %s", textToSend.c_str());
-    webSocket.sendTXT(textToSend);
+    _webSocket->sendTXT(textToSend);
 }
 
 void SocketClient::gotMessageSocket(uint8_t *payload) {
     MY_LOGD(WS_TAG, "Got data: %s", payload);
     deserializeJson(_doc, payload);
     if (strcmp(_doc["message"], "connected") == 0) {
+        // Get the Time first before the JSON gets cleared.
+        if (!_doc["time"].isNull()) {
+            time_t t = _doc["time"]["unix"].as<time_t>();
+            uint32_t offset = _doc["time"]["offset"].as<uint32_t>();
+            _local_time_offset = offset;
+            // Call the ntp service to sync time.
+            configTime(offset, 0, "pool.ntp.org", "time.nist.gov");
+        }
+
 		if (!_doc["data"].isNull()) {
             // check if _doc["data"] is a string
             if (_doc["data"].is<const char *>()) {
@@ -181,19 +204,19 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
 }
 
 void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
-    if (!webSocket.isConnected()) {
+    if (!_webSocket->isConnected()) {
         return;
     }
 	_doc.clear();
     _doc["message"] = "returningStatus";
-    _doc.createNestedObject("data");
+    _doc["data"].to<JsonObject>(); // Create a new JsonObject for "data" field.
     sendStatus(_doc["data"]);
     _doc["save"] = save;
 
     String JsonToSend = "";
     serializeJson(_doc, JsonToSend);
     MY_LOGD(WS_TAG, "Returning status: %s", JsonToSend.c_str());
-    webSocket.sendTXT(JsonToSend);
+    _webSocket->sendTXT(JsonToSend);
 }
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
@@ -223,7 +246,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
             serializeJson(globalSC->_doc, JsonToSend);
             globalSC->last_reconnect = 0;
             globalSC->reconnect_time = 30000;
-            bool result = globalSC->webSocket.sendTXT(JsonToSend);
+            bool result = globalSC->_webSocket->sendTXT(JsonToSend);
             if (result) {
                 MY_LOGD(WS_TAG, "Connected to the server!");
             } else {
@@ -261,32 +284,37 @@ void SocketClient::reconnect() {
         return;
     }
 
-    if (webSocket.isConnected()) {
-        webSocket.disconnect();
+    if (_webSocket->isConnected()) {
+        _webSocket->disconnect();
     }
     MY_LOGD(WS_TAG, "<reconnect>");
     // Clean up any lingering resources
-    webSocket.~WebSocketsClient();        // Explicitly call the destructor
-    new (&webSocket) WebSocketsClient();  // Reconstruct the object in place
+    if (_webSocket) {
+        _webSocket->~WebSocketsClient();
+        _webSocket = nullptr;
+    }
+    _webSocket = new WebSocketsClient();
     // Reinitialize the WebSocket connection
-    webSocket.onEvent(SocketClient_webSocketEvent);  // Reattach the event handler
-    webSocket.setReconnectInterval(5000);            // Set reconnect interval
-    webSocket.enableHeartbeat(5000, 12000, 2);       // Enable heartbeat
+    _webSocket->onEvent(SocketClient_webSocketEvent);  // Reattach the event handler
+    _webSocket->setReconnectInterval(5000);            // Set reconnect interval
+    _webSocket->enableHeartbeat(5000, 12000, 2);       // Enable heartbeat
+
 
     // Attempt to reconnect
     if (_isSSL) {
-        webSocket.beginSSL(_socketHostURL, _port, "/");  // Use SSL connection
+        _webSocket->beginSSL(_socketHostURL, _port, "/");  // Use SSL connection
     } else {
-        webSocket.begin(_socketHostURL, _port, "/");  // Use non-SSL connection
+        _webSocket->begin(_socketHostURL, _port, "/");  // Use non-SSL connection
     }
 }
 
 void SocketClient::stopReconnect() {
-    webSocket.setReconnectInterval(MAX_ULONG);
-    webSocket.enableHeartbeat(MAX_ULONG, MAX_ULONG, 255);
+    _webSocket->setReconnectInterval(MAX_ULONG);
+    _webSocket->enableHeartbeat(MAX_ULONG, MAX_ULONG, 255);
 }
 
 void SocketClient::_init() {
+    _webSocket = new WebSocketsClient();
     _nvsManager = new NVSManager();
 
     String ap_ssid = String(_deviceType) + "-" + String(_deviceApp);
@@ -340,7 +368,7 @@ void SocketClient::loop() {
         _webserverManager->loop();
     }
 
-    webSocket.loop();
+    _webSocket->loop();
 }
 
 String SocketClient::getCurrentStatus() {

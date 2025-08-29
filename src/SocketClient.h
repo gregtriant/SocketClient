@@ -37,13 +37,14 @@ class SocketClient {
     friend void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
 
    protected:
+    WebSocketsClient *_webSocket;
     NVSManager *_nvsManager;
     WifiManager *_wifiManager;
     WebserverManager *_webserverManager;
     OTAManager *_otaManager;
     DynamicJsonDocument _doc;  //- used to store the JSON data
 
-    // data
+    // Data.
     float _version = 0.2;  // change
     const char *_deviceApp = DEFAULT_APP_NAME;
     const char *_deviceType = DEVICE_TYPE;
@@ -61,7 +62,8 @@ class SocketClient {
     bool _led_state = false;
     uint64_t _led_blink_time = 0;  // used to turn led on and off
 
-    WebSocketsClient webSocket;
+    uint32_t _local_time_offset = 0;
+
     SendStatusFunction sendStatus;
     ReceivedCommandFunction receivedCommand;
     EntityChangedFunction entityChanged;
@@ -69,7 +71,7 @@ class SocketClient {
 
     void gotMessageSocket(uint8_t *payload);
     void _init();
-    static bool watchdog(void *v);
+    // static bool watchdog(void *v);
     static unsigned long last_dog;
     static unsigned long last_png;
     static const unsigned long tick_time = 6000;
@@ -88,8 +90,8 @@ public:
     void sendLog(const String &message);
     void sendNotification(const String &message);
     void sendNotification(const String &message, const JsonDoc &data);
-    bool isConnected() { return webSocket.isConnected(); }
-    void disconnect() { webSocket.disconnect(); }
+    bool isConnected() { return _webSocket->isConnected(); }
+    void disconnect() { _webSocket->disconnect(); }
 
     void init(const SocketClientConfig_t *config);
     void init(const char *socketHostURL, int port, bool _isSSL);
@@ -132,4 +134,5 @@ public:
 
     void setToken(const char *token) { this->_token = token; }
 
+    uint32_t getLocalTimeOffset() const { return _local_time_offset; }
 };
