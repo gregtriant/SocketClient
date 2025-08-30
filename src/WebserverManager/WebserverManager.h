@@ -1,10 +1,16 @@
 #pragma once
 #include <Arduino.h>
 
+
 #if defined(ESP32) || defined(LIBRETUYA)
+#include <WiFi.h>
 #include <WebServer.h>
+#include <Update.h>
+
 #elif defined(ESP8266)
+#include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+#include <Updater.h>
 #else
 #error Platform not supported
 #endif

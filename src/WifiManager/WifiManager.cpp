@@ -64,7 +64,7 @@ void WifiManager::loop()
             _connecting_attempts++;
             // TODO: Here toggle connection led
             MY_LOGI(WIFI_TAG, "%d...", _connecting_attempts);
-            if (_connecting_attempts >= 10) {
+            if (_connecting_attempts >= 15) {
                 _connecting_time = 0;
                 _connecting_attempts = 0;
                 _wifi_status = WL_CONNECTION_LOST;
@@ -99,8 +99,8 @@ void WifiManager::_wifiConnected()
         WiFi.softAPdisconnect(true);
         WiFi.mode(WIFI_STA);
     }
-    _connecting_time = 0; // means connected
-    _connecting_attempts = 0; // reset connecting attempts
+    _connecting_time = 0;     // Means connected.
+    _connecting_attempts = 0; // Reset connecting attempts.
     MY_LOGI(WIFI_TAG, "Connected to %s! IP address: %s", _wifi_ssid.c_str(), WiFi.localIP().toString().c_str());
     _local_ip = WiFi.localIP().toString();
     _wifi_status = WiFi.status();

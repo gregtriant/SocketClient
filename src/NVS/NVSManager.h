@@ -18,6 +18,7 @@
 #define RW_MODE false
 #define RO_MODE true
 
+#define NVS_WIFI_NAMESPACE      "WIFIPrefs"
 #define NVS_WIFI_SSID_TOKEN     "ssid"
 #define NVS_WIFI_PASSWORD_TOKEN "pass"
 
