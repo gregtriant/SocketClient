@@ -175,13 +175,7 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
             _local_time_offset = offset;
             String tz = _doc["time"]["timezone"];
             if (!tz.isEmpty()) {
-                // Configure NTP in UTC, then apply the named timezone
-                if (tz != _local_time_zone) {
-                    MY_LOGD(WS_TAG, "Setting time zone to: %s", tz.c_str());
-                    setenv("TZ", tz.c_str(), 1);
-                    tzset();
-                    _local_time_zone = tz;
-                }
+                _local_time_zone = tz;
                 syncTime();
             } else {
                 MY_LOGE(WS_TAG, "Timezone missing or invalid!");
@@ -215,7 +209,10 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
 }
 
 void SocketClient::syncTime() {
-    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    MY_LOGD(WS_TAG, "Syncing time with offset %u and timezone %s", _local_time_offset, _local_time_zone.c_str());
+    configTime(_local_time_offset, 0, "pool.ntp.org", "time.nist.gov");
+    setenv("TZ", _local_time_zone.c_str(), 1);
+    tzset();
 }
 
 void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
