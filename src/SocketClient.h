@@ -63,6 +63,7 @@ class SocketClient {
     uint64_t _led_blink_time = 0;  // used to turn led on and off
 
     uint32_t _local_time_offset = 0;
+    String _local_time_zone = "";
 
     SendStatusFunction sendStatus;
     ReceivedCommandFunction receivedCommand;
@@ -133,6 +134,8 @@ public:
     void setConnectedFunction(ConnectedFunction func) { this->connected = func; }
 
     void setToken(const char *token) { this->_token = token; }
+
+    void syncTime();
 
     uint32_t getLocalTimeOffset() const { return _local_time_offset; }
 };

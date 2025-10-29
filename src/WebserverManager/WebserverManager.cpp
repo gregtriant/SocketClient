@@ -114,33 +114,33 @@ void WebserverManager::_setupWebServer()
         },
         // This handles the file upload in chunks, mimicking ESP8266HTTPUpdateServer logic (no auth)
         [this]() {
-            HTTPUpload& upload = _server.upload();
-            static bool updateError = false;
-            if (upload.status == UPLOAD_FILE_START) {
-                updateError = false;
-                WiFiUDP::stopAll();
-                Serial.printf("Update: %s\n", upload.filename.c_str());
-                uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-                if (!Update.begin(maxSketchSpace, U_FLASH)) {
-                    Update.printError(Serial);
-                    updateError = true;
-                }
-            } else if (upload.status == UPLOAD_FILE_WRITE && !updateError) {
-                if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-                    Update.printError(Serial);
-                    updateError = true;
-                }
-            } else if (upload.status == UPLOAD_FILE_END && !updateError) {
-                if (Update.end(true)) {
-                    Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
-                } else {
-                    Update.printError(Serial);
-                    updateError = true;
-                }
-            } else if (upload.status == UPLOAD_FILE_ABORTED) {
-                Update.end();
-                Serial.println("Update was aborted");
-            }
+            // HTTPUpload& upload = _server.upload();
+            // static bool updateError = false;
+            // if (upload.status == UPLOAD_FILE_START) {
+            //     updateError = false;
+            //     WiFiUDP::stopAll();
+            //     Serial.printf("Update: %s\n", upload.filename.c_str());
+            //     uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+            //     if (!Update.begin(maxSketchSpace, U_FLASH)) {
+            //         Update.printError(Serial);
+            //         updateError = true;
+            //     }
+            // } else if (upload.status == UPLOAD_FILE_WRITE && !updateError) {
+            //     if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+            //         Update.printError(Serial);
+            //         updateError = true;
+            //     }
+            // } else if (upload.status == UPLOAD_FILE_END && !updateError) {
+            //     if (Update.end(true)) {
+            //         Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+            //     } else {
+            //         Update.printError(Serial);
+            //         updateError = true;
+            //     }
+            // } else if (upload.status == UPLOAD_FILE_ABORTED) {
+            //     Update.end();
+            //     Serial.println("Update was aborted");
+            // }
             // yield(); // keep WiFi alive
         });
 

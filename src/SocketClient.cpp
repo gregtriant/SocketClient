@@ -173,8 +173,19 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
             time_t t = _doc["time"]["unix"].as<time_t>();
             uint32_t offset = _doc["time"]["offset"].as<uint32_t>();
             _local_time_offset = offset;
-            // Call the ntp service to sync time.
-            configTime(offset, 0, "pool.ntp.org", "time.nist.gov");
+            String tz = _doc["time"]["timezone"];
+            if (!tz.isEmpty()) {
+                // Configure NTP in UTC, then apply the named timezone
+                if (tz != _local_time_zone) {
+                    MY_LOGD(WS_TAG, "Setting time zone to: %s", tz.c_str());
+                    setenv("TZ", tz.c_str(), 1);
+                    tzset();
+                    _local_time_zone = tz;
+                }
+                syncTime();
+            } else {
+                MY_LOGE(WS_TAG, "Timezone missing or invalid!");
+            }
         }
 
 		if (!_doc["data"].isNull()) {
@@ -201,6 +212,10 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         MY_LOGD(WS_TAG, "Update URL: %s", updateURL.c_str());
         _otaManager->startOTA(updateURL);
     }
+}
+
+void SocketClient::syncTime() {
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
 }
 
 void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
