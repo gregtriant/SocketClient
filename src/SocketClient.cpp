@@ -85,7 +85,7 @@ SocketClient::SocketClient() :
     _wifiManager(nullptr),
     _webserverManager(nullptr),
     _otaManager(nullptr),
-    _doc(JSON_SIZE)
+    _doc() //-(JSON_SIZE)
 {
     static int count = 0;
     count++;
@@ -172,7 +172,7 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
     if (strcmp(_doc["message"], "connected") == 0) {
         // Get the Time first before the JSON gets cleared.
         if (!_doc["time"].isNull()) {
-            time_t t = _doc["time"]["unix"].as<time_t>();
+            //- time_t t = _doc["time"]["unix"].as<time_t>();
             uint32_t offset = _doc["time"]["offset"].as<uint32_t>();
             _local_time_offset = offset;
             String tz = _doc["time"]["timezone"];
@@ -189,7 +189,7 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
             if (_doc["data"].is<const char *>()) {
                 MY_LOGD(WS_TAG, "data is string");
                 // TODO: remove this when the server is fixed and all the devices are updated
-                DynamicJsonDocument tempDoc(2024);
+                JsonDocument tempDoc;//-(2024);
                 deserializeJson(tempDoc, _doc["data"]);
                 connected(tempDoc);
             } else {

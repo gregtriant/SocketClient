@@ -42,7 +42,7 @@ class SocketClient {
     WifiManager *_wifiManager;
     WebserverManager *_webserverManager;
     OTAManager *_otaManager;
-    DynamicJsonDocument _doc;  //- used to store the JSON data
+    JsonDocument _doc;  //- used to store the JSON data
 
     // Data.
     float _version = 0.2;  // change
