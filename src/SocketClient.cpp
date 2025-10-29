@@ -100,6 +100,8 @@ SocketClient::SocketClient() :
     receivedCommand = SocketClient_receivedCommand;
     entityChanged = SocketClient_entityChanged;
     connected = SocketClient_connected;
+
+    _has_time = false;
 }
 
 SocketClient::~SocketClient() {
@@ -213,6 +215,7 @@ void SocketClient::syncTime() {
     configTime(_local_time_offset, 0, "pool.ntp.org", "time.nist.gov");
     setenv("TZ", _local_time_zone.c_str(), 1);
     tzset();
+    _has_time = true;
 }
 
 void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
