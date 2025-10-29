@@ -56,6 +56,12 @@
             "owner": "vshymanskyy",
             "version": "^2.1.0",
             "platforms": "espressif8266"
+        },
+        {
+            "name":"NTPClient",
+            "owner":"arduino-libraries",
+            "version":"3.2.1",
+            "platforms": [ "espressif32", "espressif8266" ]
         }
     ]
 }

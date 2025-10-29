@@ -135,9 +135,8 @@ public:
 
     void setToken(const char *token) { this->_token = token; }
 
-    bool hasTime() { return _has_time; }
-    void syncTime();
-    uint32_t getLocalTimeOffset() const { return _local_time_offset; }
-protected:
-    bool _has_time;
+    bool hasTime();
+    void syncTime(bool toBegin = false);
+    bool getTime(int *hh,int *mm,int *ss=nullptr);
+    bool getDate(int *yy,int *mm,int *dd);
 };
