@@ -1,9 +1,70 @@
+#include <WiFiUdp.h>
+#include <NTPClient.h>
 
 #include "TimeClient.h"
 
 WiFiUDP ntpUDP;
-//- NTPClient timeClient(ntpUDP);
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, 60000);
+NTPClient ntpClient(ntpUDP, "pool.ntp.org", 0, 60000);
+
+void TimeClient::begin(const char *TZ){
+  ntpClient.begin();
+  ntpClient.forceUpdate();
+  syncSystemClock();
+
+  // 🌍 Apply timezone & DST rules
+  setenv("TZ", TZ, 1);
+  tzset();
+} 
+
+void TimeClient::syncSystemClock() {
+  ntpClient.update();
+  unsigned long epoch = ntpClient.getEpochTime();
+
+  struct timeval tv;
+  tv.tv_sec = epoch;
+  tv.tv_usec = 0;
+  settimeofday(&tv, nullptr);  // 🔥 updates system time
+  //- Serial.printf("Synced system time to %lu (UTC)\n", epoch);
+}
+
+void TimeClient::loop(){
+  static unsigned long last_sync = 0;
+  if(millis()-last_sync>update_interval){
+    syncSystemClock();
+    last_sync = millis();
+  }
+}
+
+bool TimeClient::hasTime(){
+  return ntpClient.isTimeSet();
+}
+
+bool TimeClient::getTime(int &hh, int &mm, int &ss){
+    if(!hasTime()){
+        hh = mm = ss = 0; //- sanity defaults...
+        return false;
+    }
+    time_t epochTime = time(nullptr);
+    struct tm *timeinfo = localtime(&epochTime);
+    hh = timeinfo->tm_hour;
+    mm = timeinfo->tm_min;
+    ss = timeinfo->tm_sec;
+    return true;
+}
+
+bool TimeClient::getDate(int &yy, int &mm, int &dd){
+    if(!hasTime()) { 
+        yy = 1900;
+        mm = dd = 1;
+        return false;
+    }
+    time_t epochTime = time(nullptr);
+    struct tm *timeinfo = localtime(&epochTime);
+    yy = timeinfo->tm_year+1900;
+    mm = timeinfo->tm_mon+1;
+    dd = timeinfo->tm_mday;
+    return true;
+}
 
 // === Helper: compute nth weekday of a month (e.g. last Sunday in March) ===
 int nthWeekdayOfMonth(int year, int month, int weekday, int nth) {

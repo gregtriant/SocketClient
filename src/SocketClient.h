@@ -25,7 +25,7 @@
 #include "SocketClientDefs.h"
 #include "WebserverManager/WebserverManager.h"
 #include "WifiManager/WifiManager.h"
-
+#include "TimeClient/TimeClient.h"
 
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
@@ -35,7 +35,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
  */
 class SocketClient {
     friend void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
-
+    
    protected:
     WebSocketsClient *_webSocket;
     NVSManager *_nvsManager;
@@ -43,6 +43,7 @@ class SocketClient {
     WebserverManager *_webserverManager;
     OTAManager *_otaManager;
     JsonDocument _doc;  //- used to store the JSON data
+    TimeClient _tc;
 
     // Data.
     float _version = 0.2;  // change
@@ -136,7 +137,6 @@ public:
     void setToken(const char *token) { this->_token = token; }
 
     bool hasTime();
-    void syncTime(bool toBegin = false);
-    bool getTime(int *hh,int *mm,int *ss=nullptr);
-    bool getDate(int *yy,int *mm,int *dd);
+    bool getTime(int &hh, int &mm, int &ss) { return _tc.getTime(hh,mm,ss); }
+    bool getDate(int &yy, int &mm, int &dd) { return _tc.getDate(yy,mm,dd); }
 };

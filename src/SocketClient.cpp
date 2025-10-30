@@ -165,39 +165,7 @@ void SocketClient::sendNotification(const String &message, const JsonDoc &doc) {
 }
 
 bool SocketClient::hasTime(){
-    return timeClient.isTimeSet();
-}
-
-void SocketClient::syncTime(bool bBegin){
-    long offset = getTZOffset(_local_time_zone.c_str());
-    timeClient.setTimeOffset(offset);
-    if(bBegin){
-        timeClient.begin();
-        timeClient.forceUpdate();
-    } else {
-        timeClient.update();
-    }
-//-    Serial.printf("\n%02d:%02d\n",timeClient.getHours(),timeClient.getMinutes());
-}
-
-bool SocketClient::getTime(int *hh, int *mm, int *ss){
-    if(!hasTime())
-        return false;
-    if(hh)*hh = timeClient.getHours();
-    if(mm)*mm = timeClient.getMinutes();
-    if(ss)*ss = timeClient.getSeconds();
-    return true;
-}
-
-bool SocketClient::getDate(int *yy, int *mm, int *dd){
-    if(!hasTime())
-        return false;
-    time_t epochTime = timeClient.getEpochTime();
-    struct tm *timeinfo = localtime(&epochTime);
-    if(yy)*yy = timeinfo->tm_year+1900;
-    if(mm)*mm = timeinfo->tm_mon+1;
-    if(dd)*dd = timeinfo->tm_mday;
-    return true;
+    return _tc.hasTime();
 }
 
 void SocketClient::gotMessageSocket(uint8_t *payload) {
@@ -212,7 +180,7 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
             String tz = _doc["time"]["timezone"];
             if (!tz.isEmpty()) {
                 _local_time_zone = tz;
-                syncTime(true);
+                _tc.begin(_local_time_zone.c_str());
             } else {
                 MY_LOGE(WS_TAG, "Timezone missing or invalid!");
             }
@@ -410,14 +378,7 @@ void SocketClient::loop() {
     }
 
     _webSocket->loop();
-
-    static long lastsync=0;
-    if(millis()-lastsync>60*1000){
-        if(lastsync){
-            syncTime();
-        }
-        lastsync = millis();
-    }
+    _tc.loop();
 }
 
 String SocketClient::getCurrentStatus() {
