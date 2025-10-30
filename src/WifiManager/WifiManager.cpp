@@ -35,7 +35,7 @@ void WifiManager::loop()
 {
     uint64_t now = millis();
     wl_status_t wifiStatus = WiFi.status();
-    int wifiMode = (int)WiFi.getMode();
+    /*int wifiMode =*/ (int)WiFi.getMode();
 
     if ((_wifi_status != WL_CONNECTION_LOST) && // Prev status
         (_wifi_status != WL_DISCONNECTED) &&    // Prev status

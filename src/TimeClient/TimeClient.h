@@ -6,7 +6,7 @@
 class TimeClient {
     unsigned long update_interval;
 public:
-    TimeClient(long upd=10L*60000L) {
+    TimeClient(long upd=15L*60000L) {
         update_interval = upd;
     }
     void begin(const char *TZ);
