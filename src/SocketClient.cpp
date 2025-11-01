@@ -174,9 +174,6 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
     if (strcmp(_doc["message"], "connected") == 0) {
         // Get the Time first before the JSON gets cleared.
         if (!_doc["time"].isNull()) {
-            //- time_t t = _doc["time"]["unix"].as<time_t>();
-            uint32_t offset = _doc["time"]["offset"].as<uint32_t>();
-            _local_time_offset = offset;
             String tz = _doc["time"]["timezone"];
             if (!tz.isEmpty()) {
                 _local_time_zone = tz;

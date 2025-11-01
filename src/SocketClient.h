@@ -28,8 +28,6 @@
 #include "TimeClient/TimeClient.h"
 
 
-void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
-
 /**
  * @brief The SocketClient class provides functionality for connecting to a socket server
  */
@@ -137,6 +135,6 @@ public:
     void setToken(const char *token) { this->_token = token; }
 
     bool hasTime();
-    bool getTime(int &hh, int &mm, int &ss) { return _tc.getTime(hh,mm,ss); }
-    bool getDate(int &yy, int &mm, int &dd) { return _tc.getDate(yy,mm,dd); }
+    bool getTime(int &hh, int &mm, int &ss) { return _tc.getTime(hh, mm, ss); }
+    bool getDate(int &yy, int &mm, int &dd) { return _tc.getDate(yy, mm, dd); }
 };
