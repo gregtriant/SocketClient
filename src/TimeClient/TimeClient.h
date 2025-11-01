@@ -6,8 +6,8 @@
 class TimeClient {
     unsigned long update_interval;
 public:
-    TimeClient(long upd=15L*60000L) {
-        update_interval = upd;
+    TimeClient(long upd=24L*60L*60000L) {
+        update_interval = upd;  //- once a day is more than enough..
     }
     void begin(const char *TZ);
     void loop();

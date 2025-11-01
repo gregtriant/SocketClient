@@ -27,7 +27,6 @@
 #include "WifiManager/WifiManager.h"
 #include "TimeClient/TimeClient.h"
 
-
 /**
  * @brief The SocketClient class provides functionality for connecting to a socket server
  */
