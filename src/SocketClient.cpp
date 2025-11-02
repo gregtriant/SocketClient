@@ -242,11 +242,11 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
             // MY_LOGD(WS_TAG, "Connected to url: %s", payload);
             // Prepare and send a "connect" message
             globalSC->_doc["message"] = "connect";
-            globalSC->_doc["deviceId"] = globalSC->_wifiManager->getMacAddress();
+            globalSC->_doc["deviceId"] = WiFi.macAddress();//- globalSC->_wifiManager->getMacAddress();
             globalSC->_doc["deviceApp"] = globalSC->_deviceApp;
             globalSC->_doc["deviceType"] = globalSC->_deviceType;
             globalSC->_doc["version"] = globalSC->_version;
-            globalSC->_doc["localIP"] = globalSC->_wifiManager->getIP();
+            globalSC->_doc["localIP"] = WiFi.localIP().toString(); //-globalSC->_wifiManager->getIP();
             globalSC->_doc["token"] = globalSC->_token;
             String JsonToSend = "";
             serializeJson(globalSC->_doc, JsonToSend);
