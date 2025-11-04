@@ -1,6 +1,8 @@
 #pragma once
 #include <Arduino.h>
 
+#include "WebserverManager/WebserverManager.h"
+#include "WifiManager/WifiManager.h"
 
 #if defined(ESP32) || defined(LIBRETUYA)
 #include <WiFi.h>

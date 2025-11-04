@@ -23,10 +23,12 @@
 #include "NVS/NVSManager.h"
 #include "OTA/OTAManager.h"
 #include "SocketClientDefs.h"
-#include "WebserverManager/WebserverManager.h"
-#include "WifiManager/WifiManager.h"
+//- #include "WebserverManager/WebserverManager.h"
+//- #include "WifiManager/WifiManager.h"
 #include "TimeClient/TimeClient.h"
 
+class WifiManager;
+class WebserverManager;
 /**
  * @brief The SocketClient class provides functionality for connecting to a socket server
  */
@@ -137,3 +139,4 @@ public:
     bool getTime(int &hh, int &mm, int &ss) { return _tc.getTime(hh, mm, ss); }
     bool getDate(int &yy, int &mm, int &dd) { return _tc.getDate(yy, mm, dd); }
 };
+
