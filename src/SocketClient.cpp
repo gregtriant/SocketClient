@@ -324,12 +324,14 @@ void SocketClient::stopReconnect() {
 
 void SocketClient::_init() {
     _webSocket = new WebSocketsClient();
-    _nvsManager = new NVSManager();
-
-    String ap_ssid = String(_deviceType) + "-" + String(_deviceApp);
-    String ap_password = String(_token).substring(String(_token).length() - 10);
-    _wifiManager = new WifiManager(_nvsManager, ap_ssid, ap_password, [this]() { this->reconnect(); }, [this]() { this->stopReconnect(); });
+    _nvsManager = NULL;
+    _wifiManager= NULL;
     if (_handleWifi) {
+        _nvsManager = new NVSManager();
+
+        String ap_ssid = String(_deviceType) + "-" + String(_deviceApp);
+        String ap_password = String(_token).substring(String(_token).length() - 10);
+        _wifiManager = new WifiManager(_nvsManager, ap_ssid, ap_password, [this]() { this->reconnect(); }, [this]() { this->stopReconnect(); });
         _wifiManager->init();
         _webserverManager = new WebserverManager(_wifiManager,
                                                 &_deviceInfo,
