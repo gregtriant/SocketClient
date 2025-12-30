@@ -326,6 +326,7 @@ void SocketClient::_init() {
     _webSocket = new WebSocketsClient();
     _nvsManager = NULL;
     _wifiManager= NULL;
+    WiFi.hostname(String(_deviceType) + "-" + String(_deviceApp));
     if (_handleWifi) {
         _nvsManager = new NVSManager();
 
