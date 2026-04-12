@@ -6,12 +6,13 @@
 #include "../Log/Log.h"
 
 
-WebserverManager::WebserverManager(WifiManager *wifiManager, DeviceInfo_t *deviceInfo, std::function<String()> getCurrentStatus)
+WebserverManager::WebserverManager(int port, WifiManager *wifiManager, DeviceInfo_t *deviceInfo, std::function<String()> getCurrentStatus)
+    : _server(port)
 {
   _wifiManager = wifiManager;
   _getCurrentStatus = getCurrentStatus;
-  _setupWebServer();
   _deviceInfo = deviceInfo;
+  _setupWebServer();
   _server.begin();
 }
 
@@ -19,15 +20,15 @@ WebserverManager::WebserverManager(WifiManager *wifiManager, DeviceInfo_t *devic
 void WebserverManager::_setupWebServer()
 {
     // Connect to Wifi form.
-    _server.on("/", HTTP_GET, [this]() { this->_handleRoot(); });
+    _server.on("/sc/", HTTP_GET, [this]() { this->_handleRoot(); });
 
     // Connect to Wifi form submission.
-    _server.on("/connect", HTTP_POST, [this]()
+    _server.on("/sc/connect", HTTP_POST, [this]()
         {
             this->_handleWifiConnect();
         });
 
-    _server.on("/disconnect", HTTP_GET, [this]()
+    _server.on("/sc/disconnect", HTTP_GET, [this]()
         {
             _server.send(200, "text/plain", "Disconnecting from Wi-Fi...");
             MY_LOGD(SERVER_TAG, "Disconnecting from Wi-Fi...");
@@ -35,14 +36,14 @@ void WebserverManager::_setupWebServer()
             //  _initAPMode();
         });
 
-    _server.on("/reboot", HTTP_GET, [this]()
+    _server.on("/sc/reboot", HTTP_GET, [this]()
         {
             _server.send(200, "text/plain", "Rebooting...");
             MY_LOGD(SERVER_TAG, "Rebooting...");
             ESP.restart();
         });
 
-    _server.on("/status", HTTP_GET, [this]()
+    _server.on("/sc/status", HTTP_GET, [this]()
         {
             if (this->_getCurrentStatus == nullptr) {
                 _server.send(200, "text/plain", "No status available");
@@ -51,7 +52,7 @@ void WebserverManager::_setupWebServer()
             _server.send(200, "text/plain", this->_getCurrentStatus());
         });
 
-    _server.on("/version", HTTP_GET, [this]()
+    _server.on("/sc/version", HTTP_GET, [this]()
         {
             _server.send(200, "text/plain", String(_deviceInfo->version));
         });
@@ -68,7 +69,7 @@ void WebserverManager::_setupWebServer()
      * @param[out] status
      * @return json
      */
-    _server.on("/sys_info", HTTP_GET, [this]()
+    _server.on("/sc/sys_info", HTTP_GET, [this]()
         {
             String status = "";
             if (this->_getCurrentStatus != nullptr) {
@@ -85,7 +86,7 @@ void WebserverManager::_setupWebServer()
             _server.send(200, "application/json", res);
         });
 
-    _server.on("/scan", HTTP_GET, [this]()
+    _server.on("/sc/scan", HTTP_GET, [this]()
         {
             MY_LOGD(SERVER_TAG, "Scanning Wi-Fi networks...");
             int n = WiFi.scanNetworks();
@@ -105,7 +106,7 @@ void WebserverManager::_setupWebServer()
             _server.send(200, "application/json", json);
         });
 
-    _server.on("/upload", HTTP_POST,
+    _server.on("/sc/upload", HTTP_POST,
         [this]() {
             if (Update.hasError()) {
                 _server.send(500, "text/plain", "OTA Update Failed!");
@@ -231,7 +232,7 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
                 document.getElementById('overlay').style.display = 'none';
                 // Upload with progress
                 var xhr = new XMLHttpRequest();
-                xhr.open('POST', '/upload', true);
+                xhr.open('POST', '/sc/upload', true);
                 xhr.upload.onprogress = function(e) {
                     if (e.lengthComputable) {
                         var percent = Math.round((e.loaded / e.total) * 100);
@@ -285,7 +286,7 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
     function updateDeviceInfo() {
         // Accepts optional callback to run after update
         var cb = arguments.length > 0 ? arguments[0] : null;
-        fetch('/sys_info')
+        fetch('/sc/sys_info')
             .then(res => res.json())
             .then(data => {
                 if (data.deviceName !== undefined) {
@@ -340,11 +341,11 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
         });
     }
     function togglePassword(){var p=document.getElementById('password');p.type=p.type==='password'?'text':'password';}
-    function rebootAndWait(){document.getElementById('overlay').style.display='flex';fetch('/reboot').then(()=>{checkOnline();}).catch(()=>{checkOnline();});}
-    function checkOnline(){fetch('/',{method:'HEAD'}).then(()=>{window.location.href='/';}).catch(()=>{setTimeout(checkOnline,2000);});}
+    function rebootAndWait(){document.getElementById('overlay').style.display='flex';fetch('/sc/reboot').then(()=>{checkOnline();}).catch(()=>{checkOnline();});}
+    function checkOnline(){fetch('/sc/',{method:'HEAD'}).then(()=>{window.location.href='/sc/';}).catch(()=>{setTimeout(checkOnline,2000);});}
     function scanNetworks(){
         document.getElementById('overlay').style.display='flex';
-        fetch('/scan')
+        fetch('/sc/scan')
             .then(res=>res.json())
             .then(data=>{
                 data.sort((a,b)=>b.rssi-a.rssi);
@@ -379,11 +380,11 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
             <a id="toggleWifiFormBtn" href='#' onclick='toggleForm("wifiForm","toggleWifiFormBtn")'>Configure WiFi</a>
             <a id="toggleFileFormBtn" href='#' onclick='toggleForm("fileForm","toggleFileFormBtn")'>OTAUpdate</a>
         </nav>
-        <form id="wifiForm" action='/connect' method='POST'>
+        <form id="wifiForm" action='/sc/connect' method='POST'>
 			<span style="font-weight: bold;font-size: 16px">Connected to: </span><span id="ssidLabel"></span> (<span id="rssiLabel"></span>)
 			<div id="wifiActions">
 				<a href='#' onclick='scanNetworks()'>Scan</a>
-				<a href='/disconnect'>Disconnect</a>
+				<a href='/sc/disconnect'>Disconnect</a>
             </div>
             <label for='ssid'>SSID:</label>
             <input type='text' id='ssid' name='ssid' placeholder='Enter WiFi SSID'>
@@ -392,7 +393,7 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
             <div class='toggle'><input type='checkbox' id='show' onclick='togglePassword()'><label for='show'>Show Password</label></div>
             <input type='submit' value='Connect'>
         </form>
-        <form id="fileForm" action='/upload' method='POST' enctype='multipart/form-data'>
+        <form id="fileForm" action='/sc/upload' method='POST' enctype='multipart/form-data'>
             <label for='file'>Choose a file:</label>
             <div class="file-input-wrapper">
                 <input type='file' id='file' name='file' accept=".bin">
@@ -436,6 +437,11 @@ void WebserverManager::_handleRoot() {
 
 void WebserverManager::_handleWifiConnect()
 {
+    if (_wifiManager == nullptr) {
+        _server.send(400, "application/json", "{\"error\": \"WiFi management not enabled\"}");
+        return;
+    }
+
     String ssid = _server.arg("ssid");
     String password = _server.arg("password");
     ssid.trim();

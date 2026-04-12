@@ -40,7 +40,13 @@ protected:
 
     std::function<String()> _getCurrentStatus = nullptr;
 public:
-    WebserverManager(WifiManager *wifiManager, DeviceInfo_t *deviceInfo, std::function<String()> getCurrentStatus);
+    WebserverManager(int port, WifiManager *wifiManager, DeviceInfo_t *deviceInfo, std::function<String()> getCurrentStatus);
 
     void loop();
+
+#if defined(ESP32) || defined(LIBRETUYA)
+    WebServer* getServer() { return &_server; }
+#elif defined(ESP8266)
+    ESP8266WebServer* getServer() { return &_server; }
+#endif
 };

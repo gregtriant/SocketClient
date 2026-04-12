@@ -9,11 +9,11 @@
 #include <DNSServer.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
+#include <WebServer.h>
 
 #elif defined(ESP8266)
-// #include <ESP8266WebServer.h>
+#include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
-// #include <ESP8266httpUpdate.h>
 #include <Preferences.h>
 #else
 #error Platform not supported
@@ -133,6 +133,14 @@ public:
     void setConnectedFunction(ConnectedFunction func) { this->connected = func; }
 
     void setToken(const char *token) { this->_token = token; }
+
+    void initWebserver(int port = 80);
+
+#if defined(ESP32) || defined(LIBRETUYA)
+    WebServer* getServer();
+#elif defined(ESP8266)
+    ESP8266WebServer* getServer();
+#endif
 
     bool hasTime();
     bool getTime(int &hh, int &mm, int &ss) { return _tc.getTime(hh, mm, ss); }

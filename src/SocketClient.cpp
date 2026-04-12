@@ -334,14 +334,31 @@ void SocketClient::_init() {
         String ap_password = String(_token).substring(String(_token).length() - 10);
         _wifiManager = new WifiManager(_nvsManager, ap_ssid, ap_password, [this]() { this->reconnect(); }, [this]() { this->stopReconnect(); });
         _wifiManager->init();
-        _webserverManager = new WebserverManager(_wifiManager,
-                                                &_deviceInfo,
-                                                [this]() { return this->getCurrentStatus(); });
     }
 
     _otaManager = new OTAManager();
 
     reconnect();
+}
+
+void SocketClient::initWebserver(int port) {
+    if (_webserverManager) {
+        MY_LOGW(WS_TAG, "Webserver already initialized");
+        return;
+    }
+    _webserverManager = new WebserverManager(port, _wifiManager, &_deviceInfo,
+                                             [this]() { return this->getCurrentStatus(); });
+}
+
+#if defined(ESP32) || defined(LIBRETUYA)
+WebServer* SocketClient::getServer() {
+#elif defined(ESP8266)
+ESP8266WebServer* SocketClient::getServer() {
+#endif
+    if (_webserverManager) {
+        return _webserverManager->getServer();
+    }
+    return nullptr;
 }
 
 void SocketClient::init(const SocketClientConfig_t *config) {
@@ -375,10 +392,8 @@ void SocketClient::init(const char *socketHostURL, int port, bool _isSSL) {
 }
 
 void SocketClient::loop() {
-    if (_handleWifi) {
-        _wifiManager->loop();
-        _webserverManager->loop();
-    }
+    if (_wifiManager) _wifiManager->loop();
+    if (_webserverManager) _webserverManager->loop();
 
     _webSocket->loop();
     _tc.loop();

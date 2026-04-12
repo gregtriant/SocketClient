@@ -90,8 +90,9 @@ void setup() {
     // testClient.setConnectedFunction(connected);
     // testClient.init("api.sensordata.space", 443, true);  // if you dont want ssl use .init and change the port.
 
-    // or just 
+    // or just
     testClient.init(&config);
+    testClient.initWebserver(80);
 }
 
 void loop() { testClient.loop(); }
