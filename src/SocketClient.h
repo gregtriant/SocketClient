@@ -9,10 +9,11 @@
 #include <DNSServer.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
-#include <WebServer.h>
+#include <ESPAsyncWebServer.h>
 
 #elif defined(ESP8266)
-#include <ESP8266WebServer.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 #include <ESP8266WiFi.h>
 #include <Preferences.h>
 #else
@@ -136,11 +137,7 @@ public:
 
     void initWebserver(int port = 80);
 
-#if defined(ESP32) || defined(LIBRETUYA)
-    WebServer* getServer();
-#elif defined(ESP8266)
-    ESP8266WebServer* getServer();
-#endif
+    AsyncWebServer* getServer();
 
     bool hasTime();
     bool getTime(int &hh, int &mm, int &ss) { return _tc.getTime(hh, mm, ss); }

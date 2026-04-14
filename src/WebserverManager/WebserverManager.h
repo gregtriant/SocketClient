@@ -4,14 +4,14 @@
 #include "WebserverManager/WebserverManager.h"
 #include "WifiManager/WifiManager.h"
 
+#include <ESPAsyncWebServer.h>
+
 #if defined(ESP32) || defined(LIBRETUYA)
 #include <WiFi.h>
-#include <WebServer.h>
 #include <Update.h>
 
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
 #include <Updater.h>
 #else
 #error Platform not supported
@@ -25,17 +25,12 @@ class WebserverManager
 
 protected:
     WifiManager *_wifiManager;
-#if defined(ESP32) || defined(LIBRETUYA)
-    WebServer _server;
-#elif defined(ESP8266)
-    ESP8266WebServer _server;
-#else
-#error Platform not supported
-#endif
+    AsyncWebServer _server;
 
     void _setupWebServer();
-    void _handleRoot();
-    void _handleWifiConnect();
+    void _handleRoot(AsyncWebServerRequest *request);
+    void _sendPage(AsyncWebServerRequest *request);
+    void _handleWifiConnect(AsyncWebServerRequest *request);
     DeviceInfo_t *_deviceInfo;
 
     std::function<String()> _getCurrentStatus = nullptr;
@@ -44,9 +39,5 @@ public:
 
     void loop();
 
-#if defined(ESP32) || defined(LIBRETUYA)
-    WebServer* getServer() { return &_server; }
-#elif defined(ESP8266)
-    ESP8266WebServer* getServer() { return &_server; }
-#endif
+    AsyncWebServer* getServer() { return &_server; }
 };

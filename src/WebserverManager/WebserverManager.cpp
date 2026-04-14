@@ -17,44 +17,65 @@ WebserverManager::WebserverManager(int port, WifiManager *wifiManager, DeviceInf
 }
 
 
+extern const char PAGE_HTML_PART1[] PROGMEM;
+
 void WebserverManager::_setupWebServer()
 {
-    // Connect to Wifi form.
-    _server.on("/sc/", HTTP_GET, [this]() { this->_handleRoot(); });
-
-    // Connect to Wifi form submission.
-    _server.on("/sc/connect", HTTP_POST, [this]()
+    _server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request)
         {
-            this->_handleWifiConnect();
+            if (this->_getCurrentStatus == nullptr) {
+                request->send(200, "text/plain", "No status available");
+                return;
+            }
+            request->send(200, "text/plain", this->_getCurrentStatus());
         });
 
-    _server.on("/sc/disconnect", HTTP_GET, [this]()
+    // Connect to Wifi form.
+    _server.on("/sc/", HTTP_GET, [this](AsyncWebServerRequest *request) { this->_handleRoot(request); });
+
+    // Connect to Wifi form submission.
+    _server.on("/sc/connect", HTTP_POST, [this](AsyncWebServerRequest *request)
         {
-            _server.send(200, "text/plain", "Disconnecting from Wi-Fi...");
+            this->_handleWifiConnect(request);
+        });
+
+    _server.on("/sc/disconnect", HTTP_GET, [this](AsyncWebServerRequest *request)
+        {
+            request->send(200, "text/plain", "Disconnecting from Wi-Fi...");
             MY_LOGD(SERVER_TAG, "Disconnecting from Wi-Fi...");
             WiFi.disconnect(true);
             //  _initAPMode();
         });
 
-    _server.on("/sc/reboot", HTTP_GET, [this]()
+    _server.on("/sc/reboot", HTTP_GET, [this](AsyncWebServerRequest *request)
         {
-            _server.send(200, "text/plain", "Rebooting...");
+            this->_sendPage(request);
+        });
+
+    _server.on("/sc/reboot", HTTP_POST, [this](AsyncWebServerRequest *request)
+        {
+            request->send(200, "text/plain", "Rebooting...");
             MY_LOGD(SERVER_TAG, "Rebooting...");
             ESP.restart();
         });
 
-    _server.on("/sc/status", HTTP_GET, [this]()
+    _server.on("/sc/wifi", HTTP_GET, [this](AsyncWebServerRequest *request)
         {
-            if (this->_getCurrentStatus == nullptr) {
-                _server.send(200, "text/plain", "No status available");
-                return;
-            }
-            _server.send(200, "text/plain", this->_getCurrentStatus());
+            this->_sendPage(request);
         });
 
-    _server.on("/sc/version", HTTP_GET, [this]()
+    _server.on("/sc/status", HTTP_GET, [this](AsyncWebServerRequest *request)
         {
-            _server.send(200, "text/plain", String(_deviceInfo->version));
+            if (this->_getCurrentStatus == nullptr) {
+                request->send(200, "text/plain", "No status available");
+                return;
+            }
+            request->send(200, "text/plain", this->_getCurrentStatus());
+        });
+
+    _server.on("/sc/version", HTTP_GET, [this](AsyncWebServerRequest *request)
+        {
+            request->send(200, "text/plain", String(_deviceInfo->version));
         });
 
     /**
@@ -69,7 +90,7 @@ void WebserverManager::_setupWebServer()
      * @param[out] status
      * @return json
      */
-    _server.on("/sc/sys_info", HTTP_GET, [this]()
+    _server.on("/sc/sys_info", HTTP_GET, [this](AsyncWebServerRequest *request)
         {
             String status = "";
             if (this->_getCurrentStatus != nullptr) {
@@ -83,10 +104,10 @@ void WebserverManager::_setupWebServer()
             res += "\"SSID\":\"" + String(WiFi.SSID()) + "\",";
             res += "\"RSSI\":" + String(WiFi.RSSI()) + ",";
             res += "\"status\":" + status + "}";
-            _server.send(200, "application/json", res);
+            request->send(200, "application/json", res);
         });
 
-    _server.on("/sc/scan", HTTP_GET, [this]()
+    _server.on("/sc/scan", HTTP_GET, [this](AsyncWebServerRequest *request)
         {
             MY_LOGD(SERVER_TAG, "Scanning Wi-Fi networks...");
             int n = WiFi.scanNetworks();
@@ -103,55 +124,49 @@ void WebserverManager::_setupWebServer()
             }
             json += "]";
 
-            _server.send(200, "application/json", json);
+            request->send(200, "application/json", json);
+        });
+
+    _server.on("/sc/upload", HTTP_GET, [this](AsyncWebServerRequest *request)
+        {
+            this->_sendPage(request);
         });
 
     _server.on("/sc/upload", HTTP_POST,
-        [this]() {
-            if (Update.hasError()) {
-                _server.send(500, "text/plain", "OTA Update Failed!");
-            } else {
-                _server.send(200, "text/plain", "Update Successful! Rebooting...");
+        [this](AsyncWebServerRequest *request) {
+            bool error = Update.hasError();
+            request->send(error ? 500 : 200, "text/plain", error ? "OTA Update Failed!" : "Update Successful! Rebooting...");
+            if (!error) {
                 delay(1000);
                 ESP.restart();
             }
         },
-        // This handles the file upload in chunks, mimicking ESP8266HTTPUpdateServer logic (no auth)
-        [this]() {
-            // HTTPUpload& upload = _server.upload();
-            // static bool updateError = false;
-            // if (upload.status == UPLOAD_FILE_START) {
-            //     updateError = false;
-            //     WiFiUDP::stopAll();
-            //     Serial.printf("Update: %s\n", upload.filename.c_str());
-            //     uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-            //     if (!Update.begin(maxSketchSpace, U_FLASH)) {
-            //         Update.printError(Serial);
-            //         updateError = true;
-            //     }
-            // } else if (upload.status == UPLOAD_FILE_WRITE && !updateError) {
-            //     if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-            //         Update.printError(Serial);
-            //         updateError = true;
-            //     }
-            // } else if (upload.status == UPLOAD_FILE_END && !updateError) {
-            //     if (Update.end(true)) {
-            //         Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
-            //     } else {
-            //         Update.printError(Serial);
-            //         updateError = true;
-            //     }
-            // } else if (upload.status == UPLOAD_FILE_ABORTED) {
-            //     Update.end();
-            //     Serial.println("Update was aborted");
-            // }
-            // yield(); // keep WiFi alive
+        [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+            if (!index) {
+                MY_LOGD(SERVER_TAG, "Update Start: %s", filename.c_str());
+                // Use UPDATE_SIZE_UNKNOWN to tell the library we don't know the size yet
+                if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+                    Update.printError(Serial);
+                }
+            }
+            if (!Update.hasError()) {
+                if (Update.write(data, len) != len) {
+                    Update.printError(Serial);
+                }
+            }
+            if (final) {
+                if (Update.end(true)) { // true = sets the size to the current index
+                    MY_LOGD(SERVER_TAG, "Update Success: %u bytes", (uint32_t)(index + len));
+                } else {
+                    Update.printError(Serial);
+                }
+            }
         });
 
     // Serve the form for any URL
-    _server.onNotFound([this]()
+    _server.onNotFound([this](AsyncWebServerRequest *request)
         {
-            this->_handleRoot();
+            this->_handleRoot(request);
         });
 }
 
@@ -199,13 +214,18 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
     .file-input-wrapper {margin-bottom: 16px;margin-top: 5px;position: relative;display: flex;align-items: center;gap: 10px;border: 1px solid var(--border-color);border-radius: 6px;padding: 10px;cursor: pointer;background: #f9f9f9;}
     .file-input-wrapper input[type="file"] {opacity: 0;position: absolute;left: 0;top: 0;height: 100%;width: 100%;cursor: pointer;}
     #fileName {font-size: 14px;color: var(--input-text);}
-    #uploadProgressContainer {width: 100%;background: #eee;border-radius: 6px;margin-bottom: 16px;display: none;}
-    #uploadProgressBar {width: 0%;height: 18px;background: var(--main-color);border-radius: 6px;transition: width 0.2s;}
-    #uploadProgressText {text-align: right;font-size: 13px;color: #333;margin-bottom: 8px;display: none;}
+    #uploadProgressContainer, #rebootProgressContainer {width: 100%;background: #eee;border-radius: 6px;margin-bottom: 16px;display: none;}
+    #uploadProgressBar, #rebootProgressBar {width: 0%;height: 18px;background: var(--main-color);border-radius: 6px;transition: width 0.2s;}
+    #uploadProgressText, #rebootProgressText {text-align: right;font-size: 13px;color: #333;margin-bottom: 8px;display: none;}
     .highlightButton {background:var(--main-color);color:var(--button-text)}
 </style>
 <script>
     window.addEventListener('DOMContentLoaded', () => {
+        if (window.location.pathname.endsWith('/upload')) {
+            toggleForm("fileForm", "toggleFileFormBtn");
+        } else if (window.location.pathname.endsWith('/wifi')) {
+            toggleForm("wifiForm", "toggleWifiFormBtn");
+        }
         const fileInput = document.getElementById('file');
         if (fileInput) {
             fileInput.addEventListener('change', function(){
@@ -266,7 +286,11 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
             });
         }
         // Fetch and update device info on page load
-        updateDeviceInfo();
+        updateDeviceInfo(() => {
+            if (window.location.pathname.endsWith('/reboot')) {
+                rebootAndWait();
+            }
+        });
         // Attach updateDeviceInfo to Status button with disable/enable logic
         var statusBtn = document.getElementById('statusBtn');
         if (statusBtn) {
@@ -341,7 +365,37 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
         });
     }
     function togglePassword(){var p=document.getElementById('password');p.type=p.type==='password'?'text':'password';}
-    function rebootAndWait(){document.getElementById('overlay').style.display='flex';fetch('/sc/reboot').then(()=>{checkOnline();}).catch(()=>{checkOnline();});}
+    function rebootAndWait(){
+        const returnPage = window.location.pathname === '/sc/reboot' ? '/' : '/sc/';
+        if (window.location.pathname.endsWith('/reboot')) {
+            document.querySelectorAll('nav').forEach(nav => nav.style.display = 'none');
+            document.querySelectorAll('.device-info').forEach(p => p.style.display = 'none');
+            document.querySelectorAll('form').forEach(f => f.style.display = 'none');
+        } else {
+            document.querySelectorAll('nav a').forEach(a => a.classList.add('disabled'));
+        }
+        var text = document.getElementById('rebootProgressText');
+        var container = document.getElementById('rebootProgressContainer');
+        var bar = document.getElementById('rebootProgressBar');
+        text.style.display = 'block';
+        container.style.display = 'block';
+        fetch('/sc/reboot', {method: 'POST'}).catch(()=>{});
+        var totalTime = 15;
+        var timeLeft = totalTime;
+        text.textContent = 'Rebooting... ' + timeLeft + 's remaining';
+        var interval = setInterval(() => {
+            timeLeft--;
+            var percent = Math.round(((totalTime - timeLeft) / totalTime) * 100);
+            bar.style.width = percent + '%';
+            if(timeLeft > 0) {
+                text.textContent = 'Rebooting... ' + timeLeft + 's remaining';
+            } else {
+                clearInterval(interval);
+                text.textContent = 'Reloading...';
+                window.location.href = returnPage;
+            }
+        }, 1000);
+    }
     function checkOnline(){fetch('/sc/',{method:'HEAD'}).then(()=>{window.location.href='/sc/';}).catch(()=>{setTimeout(checkOnline,2000);});}
     function scanNetworks(){
         document.getElementById('overlay').style.display='flex';
@@ -367,19 +421,23 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
 </head>
 <body>
     <div class='container'>
-        <h1 id="dname" class='device-name'></h1>
+        <h1 id="dname" class='device-name'>%APP_TITLE%</h1>
         <p id="dtype" class='device-info'></p>
         <p id="dversion" class='device-info'></p>
         <p id="dstatus" class='device-info'></p>
         <p id="dheap" class='device-info'></p>
         <nav>
-            <a id="statusBtn" href='#'>Status</a>
-            <a id="rebootBtn" href='#' onclick='rebootAndWait()'>Reboot</a>
+            <a id="statusBtn" href='#'>Refresh</a>
+            <a id="rebootBtn" href='/sc/reboot'>Reboot</a>
         </nav>
         <nav>
             <a id="toggleWifiFormBtn" href='#' onclick='toggleForm("wifiForm","toggleWifiFormBtn")'>Configure WiFi</a>
             <a id="toggleFileFormBtn" href='#' onclick='toggleForm("fileForm","toggleFileFormBtn")'>OTAUpdate</a>
         </nav>
+        <div id="rebootProgressText"></div>
+        <div id="rebootProgressContainer">
+            <div id="rebootProgressBar"></div>
+        </div>
         <form id="wifiForm" action='/sc/connect' method='POST'>
 			<span style="font-weight: bold;font-size: 16px">Connected to: </span><span id="ssidLabel"></span> (<span id="rssiLabel"></span>)
 			<div id="wifiActions">
@@ -422,46 +480,49 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
 )rawliteral";
 
 
-void WebserverManager::_handleRoot() {
-    String status = "";
-    if (this->_getCurrentStatus != nullptr) {
-        status = this->_getCurrentStatus();
-    }
-
-    _server.setContentLength(CONTENT_LENGTH_UNKNOWN); // Indicate chunked transfer.
-    _server.send(200, "text/html", "");
-    _server.sendContent_P(PAGE_HTML_PART1);
-    _server.sendContent("");
+void WebserverManager::_handleRoot(AsyncWebServerRequest *request) {
+    this->_sendPage(request);
 }
 
+void WebserverManager::_sendPage(AsyncWebServerRequest *request) {
+    String html = FPSTR(PAGE_HTML_PART1);
+    html.replace("%APP_TITLE%", _deviceInfo && _deviceInfo->name ? _deviceInfo->name : "");
+    request->send(200, "text/html", html);
+}
 
-void WebserverManager::_handleWifiConnect()
+void WebserverManager::_handleWifiConnect(AsyncWebServerRequest *request)
 {
     if (_wifiManager == nullptr) {
-        _server.send(400, "application/json", "{\"error\": \"WiFi management not enabled\"}");
+        request->send(400, "application/json", "{\"error\": \"WiFi management not enabled\"}");
         return;
     }
 
-    String ssid = _server.arg("ssid");
-    String password = _server.arg("password");
+    String ssid = "";
+    String password = "";
+
+    if (request->hasParam("ssid", true)) {
+        ssid = request->getParam("ssid", true)->value();
+    }
+    if (request->hasParam("password", true)) {
+        password = request->getParam("password", true)->value();
+    }
+    
     ssid.trim();
     password.trim();
 
     if (ssid.length() > 0 && password.length() > 0) {
-        _server.send(200, "text/plain", "Connecting to Wi-Fi...");
+        request->send(200, "text/plain", "Connecting to Wi-Fi...");
         MY_LOGD(SERVER_TAG, "Received Wi-Fi credentials");
-        // MY_LOGD(SERVER_TAG, "SSID: " + ssid);
-        // MY_LOGD(SERVER_TAG, "Password: " + password);
 
         _wifiManager->saveWifiCredentials(ssid, password);
         _wifiManager->init();
     } else {
-        _server.send(400, "text/plain", "Invalid SSID or Password");
+        request->send(400, "text/plain", "Invalid SSID or Password");
     }
 }
 
 
 void WebserverManager::loop()
 {
-    _server.handleClient();
+    // _server.handleClient(); // Not needed for AsyncWebServer
 }
