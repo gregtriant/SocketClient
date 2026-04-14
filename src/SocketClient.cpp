@@ -350,11 +350,7 @@ void SocketClient::initWebserver(int port) {
                                              [this]() { return this->getCurrentStatus(); });
 }
 
-#if defined(ESP32) || defined(LIBRETUYA)
-WebServer* SocketClient::getServer() {
-#elif defined(ESP8266)
-ESP8266WebServer* SocketClient::getServer() {
-#endif
+AsyncWebServer* SocketClient::getServer() {
     if (_webserverManager) {
         return _webserverManager->getServer();
     }
