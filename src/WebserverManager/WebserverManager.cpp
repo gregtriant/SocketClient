@@ -324,7 +324,7 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
         }
     });
 
-    // Fetch device info from /sys_info and update UI elements
+        // Fetch device info from /sys_info and update UI elements
     function updateDeviceInfo() {
         // Accepts optional callback to run after update
         var cb = arguments.length > 0 ? arguments[0] : null;
@@ -332,13 +332,14 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
             .then(res => res.json())
             .then(data => {
                 if (data.deviceName !== undefined) {
-                    document.getElementById('dname').textContent = data.deviceName;
+                    let title = data.deviceName;
+                    if (data.version !== undefined) {
+                        title += " " + data.version;
+                    }
+                    document.getElementById('dname').textContent = title;
                 }
                 if (data.deviceType !== undefined) {
                     document.getElementById('dtype').textContent = 'Device: ' + data.deviceType;
-                }
-                if (data.version !== undefined) {
-                    document.getElementById('dversion').textContent = 'Version: ' + data.version;
                 }
                 if (data.status !== undefined) {
                     document.getElementById('dstatus').textContent = typeof data.status === 'string' ? data.status : JSON.stringify(data.status);
@@ -441,7 +442,6 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
 <body>
     <div class='container'>
         <h1 id="dname" class='device-name'>%APP_TITLE%</h1>
-        <p id="dversion" class='device-info'></p>
         <p id="dtype" class='device-info'></p>
         <p id="dheap" class='device-info'></p>
         <p id="dstatus" class='device-info'></p>
@@ -505,7 +505,12 @@ void WebserverManager::_handleRoot(AsyncWebServerRequest *request) {
 
 void WebserverManager::_sendPage(AsyncWebServerRequest *request) {
     String html = FPSTR(PAGE_HTML_PART1);
-    html.replace("%APP_TITLE%", _deviceInfo && _deviceInfo->name ? _deviceInfo->name : "");
+    String title = _deviceInfo && _deviceInfo->name ? _deviceInfo->name : "";
+    if (_deviceInfo && _deviceInfo->version) {
+        title += " ";
+        title += _deviceInfo->version;
+    }
+    html.replace("%APP_TITLE%", title);
     request->send(200, "text/html", html);
 }
 
