@@ -297,7 +297,8 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
         }
         // Fetch and update device info on page load
         updateDeviceInfo(() => {
-            if (window.location.pathname.endsWith('/reboot')) {
+            const p = window.location.pathname;
+            if (p.endsWith('/reboot') || p.endsWith('/reboot/')) {
                 rebootAndWait();
             }
         });
@@ -314,6 +315,13 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
                 });
             });
         }
+        var rebootBtn = document.getElementById('rebootBtn');
+        if (rebootBtn) {
+            rebootBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                rebootAndWait();
+            });
+        }
     });
 
     // Fetch device info from /sys_info and update UI elements
@@ -327,16 +335,16 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
                     document.getElementById('dname').textContent = data.deviceName;
                 }
                 if (data.deviceType !== undefined) {
-                    document.getElementById('dtype').textContent = 'Type: ' + data.deviceType;
+                    document.getElementById('dtype').textContent = 'Device: ' + data.deviceType;
                 }
                 if (data.version !== undefined) {
                     document.getElementById('dversion').textContent = 'Version: ' + data.version;
                 }
                 if (data.status !== undefined) {
-                    document.getElementById('dstatus').textContent = 'Status: ' + JSON.stringify(data.status);
+                    document.getElementById('dstatus').textContent = typeof data.status === 'string' ? data.status : JSON.stringify(data.status);
                 }
                 if (data.freeHeap !== undefined) {
-                    document.getElementById('dheap').textContent = 'Free Heap: ' + data.freeHeap;
+                    document.getElementById('dheap').textContent = 'Heap: ' + data.freeHeap;
                 }
                 // Optionally update SSID/RSSI in WiFi form if present
                 if (data.SSID !== undefined && document.getElementById('ssidLabel')) {
@@ -376,8 +384,9 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
     }
     function togglePassword(){var p=document.getElementById('password');p.type=p.type==='password'?'text':'password';}
     function rebootAndWait(){
-        const returnPage = window.location.pathname === '/sc/reboot' ? '/' : '/sc/';
-        if (window.location.pathname.endsWith('/reboot')) {
+        const path = window.location.pathname;
+        const returnPage = (path === '/sc/reboot' || path === '/sc/reboot/') ? '/' : '/sc/';
+        if (path.endsWith('/reboot') || path.endsWith('/reboot/')) {
             document.querySelectorAll('nav').forEach(nav => nav.style.display = 'none');
             document.querySelectorAll('.device-info').forEach(p => p.style.display = 'none');
             document.querySelectorAll('form').forEach(f => f.style.display = 'none');
@@ -434,8 +443,8 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
         <h1 id="dname" class='device-name'>%APP_TITLE%</h1>
         <p id="dversion" class='device-info'></p>
         <p id="dtype" class='device-info'></p>
-        <p id="dstatus" class='device-info'></p>
         <p id="dheap" class='device-info'></p>
+        <p id="dstatus" class='device-info'></p>
         <nav>
             <a id="statusBtn" href='#'>Refresh</a>
             <a id="rebootBtn" href='/sc/reboot'>Reboot</a>
