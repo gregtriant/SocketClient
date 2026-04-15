@@ -243,6 +243,10 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
                 const file = fileInput.files[0];
                 const formData = new FormData();
                 formData.append('file', file);
+                // Disable all buttons
+                document.querySelectorAll('nav a').forEach(a => a.classList.add('disabled'));
+                const uploadBtn = document.querySelector('#fileForm input[type="submit"]');
+                if (uploadBtn) uploadBtn.disabled = true;
                 // Show progress bar
                 document.getElementById('uploadProgressContainer').style.display = 'block';
                 document.getElementById('uploadProgressText').style.display = 'block';
@@ -277,10 +281,16 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
                         }, 3000);
                     } else {
                         document.getElementById('uploadProgressText').textContent = 'OTA Update Failed!';
+                        // Re-enable buttons on error
+                        document.querySelectorAll('nav a').forEach(a => a.classList.remove('disabled'));
+                        if (uploadBtn) uploadBtn.disabled = false;
                     }
                 };
                 xhr.onerror = function() {
                     document.getElementById('uploadProgressText').textContent = 'Upload error!';
+                    // Re-enable buttons on error
+                    document.querySelectorAll('nav a').forEach(a => a.classList.remove('disabled'));
+                    if (uploadBtn) uploadBtn.disabled = false;
                 };
                 xhr.send(formData);
             });
@@ -422,8 +432,8 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
 <body>
     <div class='container'>
         <h1 id="dname" class='device-name'>%APP_TITLE%</h1>
-        <p id="dtype" class='device-info'></p>
         <p id="dversion" class='device-info'></p>
+        <p id="dtype" class='device-info'></p>
         <p id="dstatus" class='device-info'></p>
         <p id="dheap" class='device-info'></p>
         <nav>
