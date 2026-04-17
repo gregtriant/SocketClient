@@ -103,8 +103,8 @@ void WebserverManager::_setupWebServer()
             res += "\"version\":\"" + String(_deviceInfo->version) + "\",";
             res += "\"device\":\"" + String(_deviceInfo && _deviceInfo->device ? _deviceInfo->device : "") + "\",";
             res += "\"heap\":" + String(ESP.getFreeHeap()) + ",";
-            res += "\"SSID\":\"" + String(WiFi.SSID()) + "\",";
-            res += "\"RSSI\":" + String(WiFi.RSSI()) ;//-+ ",";
+            res += "\"ssid\":\"" + String(WiFi.SSID()) + "\",";
+            res += "\"rssi\":" + String(WiFi.RSSI()) ;//-+ ",";
             res += "}";
             //- res += "\"status\":" + status + "}";
             request->send(200, "application/json", res);
