@@ -21,14 +21,16 @@ extern const char PAGE_HTML_PART1[] PROGMEM;
 
 void WebserverManager::_setupWebServer()
 {
-    _server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request)
-        {
-            if (this->_getCurrentStatus == nullptr) {
-                request->send(200, "text/plain", "No status available");
-                return;
-            }
-            request->send(200, "text/plain", this->_getCurrentStatus());
-        });
+    //- let / for the user
+    //-
+    // _server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request)
+    //     {
+    //         if (this->_getCurrentStatus == nullptr) {
+    //             request->send(200, "text/plain", "No status available");
+    //             return;
+    //         }
+    //         request->send(200, "text/plain", this->_getCurrentStatus());
+    //     });
 
     // Connect to Wifi form.
     _server.on("/sc/", HTTP_GET, [this](AsyncWebServerRequest *request) { this->_handleRoot(request); });
@@ -75,7 +77,7 @@ void WebserverManager::_setupWebServer()
 
     _server.on("/sc/version", HTTP_GET, [this](AsyncWebServerRequest *request)
         {
-            request->send(200, "text/plain", String(_deviceInfo->version));
+            request->send(200, "text/plain", String(_deviceInfo->product)+ " "+String(_deviceInfo->version));
         });
 
     /**
@@ -90,17 +92,17 @@ void WebserverManager::_setupWebServer()
      * @param[out] status
      * @return json
      */
-    _server.on("/sc/sys_info", HTTP_GET, [this](AsyncWebServerRequest *request)
+    _server.on("/sc/info", HTTP_GET, [this](AsyncWebServerRequest *request)
         {
             String status = "";
             if (this->_getCurrentStatus != nullptr) {
                 status = this->_getCurrentStatus();
             }
             String res = "{";
-            res += "\"deviceName\":\"" + String(_deviceInfo && _deviceInfo->name ? _deviceInfo->name : "") + "\",";
-            res += "\"deviceType\":\"" + String(_deviceInfo && _deviceInfo->type ? _deviceInfo->type : "") + "\",";
+            res += "\"program\":\"" + String(_deviceInfo && _deviceInfo->product ? _deviceInfo->product : "") + "\",";
             res += "\"version\":\"" + String(_deviceInfo->version) + "\",";
-            res += "\"freeHeap\":" + String(ESP.getFreeHeap()) + ",";
+            res += "\"device\":\"" + String(_deviceInfo && _deviceInfo->device ? _deviceInfo->device : "") + "\",";
+            res += "\"heap\":" + String(ESP.getFreeHeap()) + ",";
             res += "\"SSID\":\"" + String(WiFi.SSID()) + "\",";
             res += "\"RSSI\":" + String(WiFi.RSSI()) + ",";
             res += "\"status\":" + status + "}";
@@ -166,7 +168,8 @@ void WebserverManager::_setupWebServer()
     // Serve the form for any URL
     _server.onNotFound([this](AsyncWebServerRequest *request)
         {
-            this->_handleRoot(request);
+            //- this->_handleRoot(request);
+            request->send(404, "text/plain", "404 Not Found");
         });
 }
 
@@ -505,7 +508,7 @@ void WebserverManager::_handleRoot(AsyncWebServerRequest *request) {
 
 void WebserverManager::_sendPage(AsyncWebServerRequest *request) {
     String html = FPSTR(PAGE_HTML_PART1);
-    String title = _deviceInfo && _deviceInfo->name ? _deviceInfo->name : "";
+    String title = _deviceInfo && _deviceInfo->product ? _deviceInfo->product : "";
     if (_deviceInfo && _deviceInfo->version) {
         title += " ";
         title += _deviceInfo->version;

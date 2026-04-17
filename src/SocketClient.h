@@ -108,7 +108,7 @@ public:
         this->_version = version;
 
         // Just saving the name and version in deviceInfo.
-        this->_deviceInfo.name = deviceApp;
+        this->_deviceInfo.product = deviceApp;
         this->_deviceInfo.version = version;
     }
 
@@ -116,7 +116,7 @@ public:
         this->_deviceType = deviceType;
 
         // Just saving the type in deviceInfo.
-        this->_deviceInfo.type = deviceType;
+        this->_deviceInfo.device = deviceType;
     }
 
     void setSocketHost(const char *socketHostURL, int port, bool _isSSL) {
