@@ -99,13 +99,14 @@ void WebserverManager::_setupWebServer()
                 status = this->_getCurrentStatus();
             }
             String res = "{";
-            res += "\"program\":\"" + String(_deviceInfo && _deviceInfo->product ? _deviceInfo->product : "") + "\",";
+            res += "\"product\":\"" + String(_deviceInfo && _deviceInfo->product ? _deviceInfo->product : "") + "\",";
             res += "\"version\":\"" + String(_deviceInfo->version) + "\",";
             res += "\"device\":\"" + String(_deviceInfo && _deviceInfo->device ? _deviceInfo->device : "") + "\",";
             res += "\"heap\":" + String(ESP.getFreeHeap()) + ",";
             res += "\"SSID\":\"" + String(WiFi.SSID()) + "\",";
-            res += "\"RSSI\":" + String(WiFi.RSSI()) + ",";
-            res += "\"status\":" + status + "}";
+            res += "\"RSSI\":" + String(WiFi.RSSI()) ;//-+ ",";
+            res += "}";
+            //- res += "\"status\":" + status + "}";
             request->send(200, "application/json", res);
         });
 
@@ -389,7 +390,7 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
     function togglePassword(){var p=document.getElementById('password');p.type=p.type==='password'?'text':'password';}
     function rebootAndWait(){
         const path = window.location.pathname;
-        const returnPage = (path === '/sc/reboot' || path === '/sc/reboot/') ? '/' : '/sc/';
+        const returnPage = '/sc/info';
         if (path.endsWith('/reboot') || path.endsWith('/reboot/')) {
             document.querySelectorAll('nav').forEach(nav => nav.style.display = 'none');
             document.querySelectorAll('.device-info').forEach(p => p.style.display = 'none');
@@ -419,7 +420,7 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
             }
         }, 1000);
     }
-    function checkOnline(){fetch('/sc/',{method:'HEAD'}).then(()=>{window.location.href='/sc/';}).catch(()=>{setTimeout(checkOnline,2000);});}
+    function checkOnline(){fetch('/sc/',{method:'HEAD'}).then(()=>{window.location.href='/sc/info';}).catch(()=>{setTimeout(checkOnline,2000);});}
     function scanNetworks(){
         document.getElementById('overlay').style.display='flex';
         fetch('/sc/scan')
