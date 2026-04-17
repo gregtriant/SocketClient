@@ -21,17 +21,6 @@ extern const char PAGE_HTML_PART1[] PROGMEM;
 
 void WebserverManager::_setupWebServer()
 {
-    //- let / for the user
-    //-
-    // _server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request)
-    //     {
-    //         if (this->_getCurrentStatus == nullptr) {
-    //             request->send(200, "text/plain", "No status available");
-    //             return;
-    //         }
-    //         request->send(200, "text/plain", this->_getCurrentStatus());
-    //     });
-
     // Connect to Wifi form.
     _server.on("/sc/", HTTP_GET, [this](AsyncWebServerRequest *request) { this->_handleRoot(request); });
 
@@ -72,12 +61,7 @@ void WebserverManager::_setupWebServer()
                 request->send(200, "text/plain", "No status available");
                 return;
             }
-            request->send(200, "text/plain", this->_getCurrentStatus());
-        });
-
-    _server.on("/sc/version", HTTP_GET, [this](AsyncWebServerRequest *request)
-        {
-            request->send(200, "text/plain", String(_deviceInfo->product)+ " "+String(_deviceInfo->version));
+            request->send(200, "application/json", this->_getCurrentStatus());
         });
 
     /**
