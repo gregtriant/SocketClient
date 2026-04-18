@@ -350,11 +350,7 @@ void SocketClient::initWebserver(int port) {
                                              [this]() { return this->getCurrentStatus(); });
 }
 
-#if defined(ESP32) || defined(LIBRETUYA)
-WebServer* SocketClient::getServer() {
-#elif defined(ESP8266)
-ESP8266WebServer* SocketClient::getServer() {
-#endif
+AsyncWebServer* SocketClient::getServer() {
     if (_webserverManager) {
         return _webserverManager->getServer();
     }
@@ -379,8 +375,8 @@ void SocketClient::init(const SocketClientConfig_t *config) {
     _handleWifi = config->handleWifi;
 
     // Copy socket config to _deviceInfo.
-    _deviceInfo.name = config->name;
-    _deviceInfo.type = config->type;
+    _deviceInfo.product = config->name;
+    _deviceInfo.device = config->type;
     _deviceInfo.version = config->version;
 
     _init();

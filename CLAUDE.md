@@ -10,7 +10,7 @@ SocketClient is a PlatformIO library (Arduino framework) that provides WebSocket
 
 This is a PlatformIO **library**, not a standalone project. It cannot be built or tested in isolation. To verify compilation, it must be included as a dependency in a consuming PlatformIO project via `lib_deps` in `platformio.ini`.
 
-There are no tests, linter, or CI configured in this repository.
+There are no tests, linter, or CI configured in this repository. The library version is tracked in `library.json`.
 
 ## Architecture
 
@@ -28,6 +28,8 @@ When `config.handleWifi = true`, SocketClient owns the full WiFi lifecycle:
 - `WebserverManager` — serves the captive portal UI and a status endpoint
 
 When `handleWifi = false`, these managers are not instantiated and the consumer is responsible for WiFi. The library reads `WiFi.macAddress()` and `WiFi.localIP()` directly regardless.
+
+The AP SSID is `deviceType-deviceApp` and the AP password is the last 10 characters of the token. The WiFi hostname is also set to `deviceType-deviceApp`.
 
 ### Message Protocol
 All messages are JSON over WebSocket. Key message types:
@@ -56,7 +58,7 @@ A single `JsonDocument _doc` member is reused across all message construction an
 
 ### Optional HA MQTT Module (`SC_ENABLE_HA_MQTT`)
 Enabled by adding `-D SC_ENABLE_HA_MQTT` to `build_flags`. When enabled:
-- `HAMqttConfig_t` must be populated and passed via `SocketClientConfig_t::mqttConfig`
+- `HAMqttConfig_t` must be populated and passed to `HAMqtt` directly (no field on `SocketClientConfig_t` yet)
 - `SocketClient` instantiates `HAMqtt` and exposes it via `getMqttClient()`
 - `HAMqtt` auto-reconnects every 5s, publishes Home Assistant MQTT autodiscovery on connect, and exposes `addEntity()` / `publishEvent()` / `loop()`
 - **ESP32/LibreTuya only** — `HAMqtt.cpp` includes `<WiFi.h>` directly without platform guard; not compatible with ESP8266
@@ -68,4 +70,4 @@ Enabled by adding `-D SC_ENABLE_HA_MQTT` to `build_flags`. When enabled:
 - Null-safety macros `ASSIGN_IF_NOT_NULLPTR` and `RETURN_IF_NULLPTR` are used throughout init code.
 - Forward declarations of `WifiManager` and `WebserverManager` in `SocketClient.h` avoid circular includes; full includes are in the `.cpp`.
 - `initWebserver(port)` can be called independently of `handleWifi` to start only the webserver (e.g. to add custom routes via `getServer()`).
-- `getServer()` return type is platform-dependent: `WebServer*` on ESP32/LibreTuya, `ESP8266WebServer*` on ESP8266.
+- `getServer()` returns `AsyncWebServer*` on both platforms (ESPAsyncWebServer is used throughout).
