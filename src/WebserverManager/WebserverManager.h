@@ -37,6 +37,7 @@ protected:
     DeviceInfo_t *_deviceInfo;
 
     std::function<String()> _getCurrentStatus = nullptr;
+    bool _started = false;
 public:
     WebserverManager(int port, WifiManager *wifiManager, DeviceInfo_t *deviceInfo, std::function<String()> getCurrentStatus);
 

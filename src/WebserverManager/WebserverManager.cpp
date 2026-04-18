@@ -13,7 +13,6 @@ WebserverManager::WebserverManager(int port, WifiManager *wifiManager, DeviceInf
   _getCurrentStatus = getCurrentStatus;
   _deviceInfo = deviceInfo;
   _setupWebServer();
-  _server.begin();
 }
 
 
@@ -261,5 +260,9 @@ void WebserverManager::_handleWifiConnect(AsyncWebServerRequest *request)
 
 void WebserverManager::loop()
 {
-    // _server.handleClient(); // Not needed for AsyncWebServer
+    if (!_started && WiFi.isConnected()) {
+        _server.begin();
+        _started = true;
+        MY_LOGD(SERVER_TAG, "Webserver started");
+    }
 }
