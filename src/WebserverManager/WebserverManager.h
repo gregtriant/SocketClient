@@ -31,6 +31,7 @@ protected:
     void _handleRoot(AsyncWebServerRequest *request);
     void _sendPage(AsyncWebServerRequest *request);
     void _handleWifiConnect(AsyncWebServerRequest *request);
+    void _sendUploadPage(AsyncWebServerRequest *request);
     DeviceInfo_t *_deviceInfo;
 
     std::function<String()> _getCurrentStatus = nullptr;
