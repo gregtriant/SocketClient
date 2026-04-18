@@ -80,7 +80,7 @@ typedef struct {
     const int port;         // port of the socket server
     const bool isSSL;       // is the socket server using SSL
     const char *token;      // token for authentication
-    const bool handleWifi;  // the socket client will handle wifi connection
+    bool handleWifi    = false;  // enable WifiManager + NVSManager
 
     /* functions */
     SendStatusFunction sendStatus;

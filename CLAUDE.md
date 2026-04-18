@@ -46,13 +46,26 @@ WebSocketsClient handles basic reconnection (5s interval, heartbeat). The librar
 `SocketClientDefs.h` uses `#if defined(ESP32) || defined(LIBRETUYA)` / `#elif defined(ESP8266)` throughout for platform-specific WiFi, HTTP, and server APIs. LibreTuya boards follow the ESP32 code path.
 
 ### Logging
-`Log.h` defines `MY_LOG{E,W,I,D,V}(tag, fmt, ...)` macros that write to `Serial.printf` with severity prefix and 4-char tag. Tags: `WIFI`, `WEBS`, ` WS `, ` OTA`, ` NVS`, ` APP`.
+`Log.h` defines `MY_LOG{E,W,I,D,V}(tag, fmt, ...)` macros that write to `Serial.printf` with severity prefix and 4-char tag. Tags: `WIFI`, `WEBS`, ` WS `, ` OTA`, ` NVS`, ` APP`, `MQTT`.
 
 ### JSON Handling
-A single `JsonDocument _doc` member is reused across all message construction and parsing. It is `clear()`'d before each use. `JsonDoc` is a typedef for `JsonVariant` (ArduinoJson v7 reference semantics). `JSON_SIZE` defaults to 4096 but can be overridden by the consumer.
+A single `JsonDocument _doc` member is reused across all message construction and parsing. It is `clear()`'d before each use. `JsonDoc` is a typedef for `JsonVariant` (ArduinoJson v7 reference semantics). `JSON_SIZE` defaults to 4096 but can be overridden by the consumer. **Callbacks must not store the `JsonDoc` reference past their return** — `_doc` is cleared immediately after dispatch.
+
+### TimeClient
+`_tc` (a `TimeClient` member) syncs time via NTP after the server sends a `connected` message with timezone. Public API: `hasTime()`, `getTime(hh, mm, ss)`, `getDate(yy, mm, dd)`. Time is only valid after a successful `connected` message is received.
+
+### Optional HA MQTT Module (`SC_ENABLE_HA_MQTT`)
+Enabled by adding `-D SC_ENABLE_HA_MQTT` to `build_flags`. When enabled:
+- `HAMqttConfig_t` must be populated and passed via `SocketClientConfig_t::mqttConfig`
+- `SocketClient` instantiates `HAMqtt` and exposes it via `getMqttClient()`
+- `HAMqtt` auto-reconnects every 5s, publishes Home Assistant MQTT autodiscovery on connect, and exposes `addEntity()` / `publishEvent()` / `loop()`
+- **ESP32/LibreTuya only** — `HAMqtt.cpp` includes `<WiFi.h>` directly without platform guard; not compatible with ESP8266
+- `MAX_HA_ENTITIES` is 8 (compile-time fixed array)
 
 ## Key Conventions
 
 - Platform guards use `defined(ESP32) || defined(LIBRETUYA)` for the ESP32 path, `defined(ESP8266)` for the 8266 path, with `#error` fallback.
 - Null-safety macros `ASSIGN_IF_NOT_NULLPTR` and `RETURN_IF_NULLPTR` are used throughout init code.
 - Forward declarations of `WifiManager` and `WebserverManager` in `SocketClient.h` avoid circular includes; full includes are in the `.cpp`.
+- `initWebserver(port)` can be called independently of `handleWifi` to start only the webserver (e.g. to add custom routes via `getServer()`).
+- `getServer()` return type is platform-dependent: `WebServer*` on ESP32/LibreTuya, `ESP8266WebServer*` on ESP8266.

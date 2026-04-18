@@ -14,5 +14,6 @@
 #define OTA_TAG    " OTA"
 #define NVS_TAG    " NVS"
 #define APP_TAG    " APP"
+#define MQTT_TAG   "MQTT"
 
 #endif // LOG_H
