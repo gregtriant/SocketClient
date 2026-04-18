@@ -83,9 +83,9 @@ void WebserverManager::_setupWebServer()
                 status = this->_getCurrentStatus();
             }
             String res = "{";
-            res += "\"product\":\"" + String(_deviceInfo && _deviceInfo->product ? _deviceInfo->product : "") + "\",";
-            res += "\"version\":\"" + String(_deviceInfo->version) + "\",";
-            res += "\"device\":\"" + String(_deviceInfo && _deviceInfo->device ? _deviceInfo->device : "") + "\",";
+            res += "\"app\":\"" + String(_deviceInfo && _deviceInfo->product ? _deviceInfo->product : "") + "\",";
+            res += "\"ver\":\"" + String(_deviceInfo->version) + "\",";
+            res += "\"type\":\"" + String(_deviceInfo && _deviceInfo->device ? _deviceInfo->device : "") + "\",";
             res += "\"heap\":" + String(ESP.getFreeHeap()) + ",";
             res += "\"ssid\":\"" + String(WiFi.SSID()) + "\",";
             res += "\"rssi\":" + String(WiFi.RSSI()) ;//-+ ",";
@@ -116,7 +116,7 @@ void WebserverManager::_setupWebServer()
 
     _server.on("/sc/upload", HTTP_GET, [this](AsyncWebServerRequest *request)
         {
-            this->_sendPage(request);
+            this->_sendUploadPage(request);
         });
 
     _server.on("/sc/upload", HTTP_POST,
@@ -170,7 +170,7 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
     html,body{font-family:Arial,sans-serif;height:100%;width:100%;background:var(--background-color)}
     body{display:flex;justify-content:center;padding: 0 20px;}
     .container{width:100%;max-width:400px; margin: 40px 0;}
-    nav{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:20px 0}
+    nav{display:none;flex-wrap:wrap;gap:8px;justify-content:center;margin:20px 0}
     nav a{flex:1;text-align:center;padding:10px;border:2px solid var(--main-color);color:var(--main-color);background:var(--container-bg);text-decoration:none;border-radius:6px;font-size:16px;cursor:pointer;transition:all 0.2s ease}
     nav a:hover{background:var(--main-color);color:var(--button-text)}
     a.disabled{pointer-events:none;opacity:0.6}
@@ -195,7 +195,7 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
     #popup button{padding:10px 20px;border:none;border-radius:6px;background:var(--main-color);color:var(--button-text);font-size:16px;cursor:pointer}
     #popup button:hover{background:var(--main-color-hover)}
     .device-name{font-size:24px;font-weight:bold;margin-bottom:8px;}
-    .device-info{margin-bottom:8px;}
+    .device-info{display:none;margin-bottom:8px;}
     #wifiForm, #fileForm {display: none;width: 100%;border-radius: 12px;background: var(--container-bg);box-shadow: 0 4px 12px rgba(0,0,0,0.1);height: 0;padding: 0 24px;opacity: 0;overflow: hidden;transition: height 0.4s ease, opacity 0.3s ease;}
     #wifiForm.show {height: 380px;opacity: 1;display: block;padding: 24px;}
     #fileForm.show {height: 300px;opacity: 1;display: block;padding: 24px;}
@@ -209,10 +209,15 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
 </style>
 <script>
     window.addEventListener('DOMContentLoaded', () => {
-        if (window.location.pathname.endsWith('/upload')) {
+        const path = window.location.pathname;
+        if (path.endsWith('/upload') || path.endsWith('/upload/')) {
             toggleForm("fileForm", "toggleFileFormBtn");
-        } else if (window.location.pathname.endsWith('/wifi')) {
+        } else if (path.endsWith('/wifi')) {
             toggleForm("wifiForm", "toggleWifiFormBtn");
+        }
+        if (!path.includes('/reboot') && !path.includes('/upload')) {
+            document.querySelectorAll('nav').forEach(nav => nav.style.display = 'flex');
+            document.querySelectorAll('.device-info').forEach(p => p.style.display = 'block');
         }
         const fileInput = document.getElementById('file');
         if (fileInput) {
@@ -234,12 +239,15 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
                 // Disable all buttons
                 document.querySelectorAll('nav a').forEach(a => a.classList.add('disabled'));
                 const uploadBtn = document.querySelector('#fileForm input[type="submit"]');
-                if (uploadBtn) uploadBtn.disabled = true;
+                if (uploadBtn) {
+                    uploadBtn.disabled = true;
+                    uploadBtn.style.display = 'none';
+                }
                 // Show progress bar
                 document.getElementById('uploadProgressContainer').style.display = 'block';
                 document.getElementById('uploadProgressText').style.display = 'block';
                 document.getElementById('uploadProgressBar').style.width = '0%';
-                document.getElementById('uploadProgressText').textContent = '0%';
+                document.getElementById('uploadProgressText').textContent = 'Uploading... 0%';
                 // Hide overlay spinner
                 document.getElementById('overlay').style.display = 'none';
                 // Upload with progress
@@ -249,36 +257,45 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
                     if (e.lengthComputable) {
                         var percent = Math.round((e.loaded / e.total) * 100);
                         document.getElementById('uploadProgressBar').style.width = percent + '%';
-                        document.getElementById('uploadProgressText').textContent = percent + '%';
+                        document.getElementById('uploadProgressText').textContent = 'Uploading... ' + percent + '%';
                     }
                 };
                 xhr.onload = function() {
                     if (xhr.status === 200) {
                         document.getElementById('uploadProgressBar').style.width = '100%';
-                        document.getElementById('uploadProgressText').textContent = 'Update Successful! Rebooting...';
-                        setTimeout(function(){
-                            document.getElementById('uploadProgressContainer').style.display = 'none';
-                            document.getElementById('uploadProgressText').style.display = 'none';
-							document.getElementById('overlay').style.display='flex';
-							try {
-								checkOnline();
-							} catch (e) {
-							 	console.log(e);
-								checkOnline(); 
-							}
-                        }, 3000);
+                        let t = 3;
+                        document.getElementById('uploadProgressText').textContent = 'Rebooting... ' + t + 's';
+                        let intv = setInterval(function() {
+                            t--;
+                            if (t > 0) {
+                                document.getElementById('uploadProgressText').textContent = 'Rebooting... ' + t + 's';
+                            } else {
+                                clearInterval(intv);
+                                document.getElementById('uploadProgressContainer').style.display = 'none';
+                                document.getElementById('uploadProgressText').style.display = 'none';
+                                document.getElementById('overlayText').textContent = 'Waiting for device...';
+                                document.getElementById('overlay').style.display='flex';
+                                checkOnline();
+                            }
+                        }, 1000);
                     } else {
                         document.getElementById('uploadProgressText').textContent = 'OTA Update Failed!';
                         // Re-enable buttons on error
                         document.querySelectorAll('nav a').forEach(a => a.classList.remove('disabled'));
-                        if (uploadBtn) uploadBtn.disabled = false;
+                        if (uploadBtn) {
+                            uploadBtn.disabled = false;
+                            uploadBtn.style.display = 'block';
+                        }
                     }
                 };
                 xhr.onerror = function() {
                     document.getElementById('uploadProgressText').textContent = 'Upload error!';
                     // Re-enable buttons on error
                     document.querySelectorAll('nav a').forEach(a => a.classList.remove('disabled'));
-                    if (uploadBtn) uploadBtn.disabled = false;
+                    if (uploadBtn) {
+                        uploadBtn.disabled = false;
+                        uploadBtn.style.display = 'block';
+                    }
                 };
                 xhr.send(formData);
             });
@@ -373,44 +390,52 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
     }
     function togglePassword(){var p=document.getElementById('password');p.type=p.type==='password'?'text':'password';}
     function rebootAndWait(){
-        const path = window.location.pathname;
-        const returnPage = '/sc/info';
-        if (path.endsWith('/reboot') || path.endsWith('/reboot/')) {
-            document.querySelectorAll('nav').forEach(nav => nav.style.display = 'none');
-            document.querySelectorAll('.device-info').forEach(p => p.style.display = 'none');
-            document.querySelectorAll('form').forEach(f => f.style.display = 'none');
-        } else {
-            document.querySelectorAll('nav a').forEach(a => a.classList.add('disabled'));
-        }
+        document.querySelectorAll('nav').forEach(nav => nav.style.display = 'none');
+        document.querySelectorAll('.device-info').forEach(p => p.style.display = 'none');
+        document.querySelectorAll('form').forEach(f => {
+            if (f.id !== 'fileForm') f.style.display = 'none';
+        });
         var text = document.getElementById('rebootProgressText');
-        var container = document.getElementById('rebootProgressContainer');
-        var bar = document.getElementById('rebootProgressBar');
         text.style.display = 'block';
-        container.style.display = 'block';
         fetch('/sc/reboot', {method: 'POST'}).catch(()=>{});
-        var totalTime = 15;
+        var totalTime = 3;
         var timeLeft = totalTime;
-        text.textContent = 'Rebooting... ' + timeLeft + 's remaining';
+        text.textContent = 'Rebooting... ' + timeLeft + 's';
         var interval = setInterval(() => {
             timeLeft--;
-            var percent = Math.round(((totalTime - timeLeft) / totalTime) * 100);
-            bar.style.width = percent + '%';
             if(timeLeft > 0) {
-                text.textContent = 'Rebooting... ' + timeLeft + 's remaining';
+                text.textContent = 'Rebooting... ' + timeLeft + 's';
             } else {
                 clearInterval(interval);
-                text.textContent = 'Reloading...';
-                window.location.href = returnPage;
+                text.style.display = 'none';
+                document.getElementById('overlayText').textContent = 'Waiting for device...';
+                document.getElementById('overlay').style.display='flex';
+                checkOnline();
             }
         }, 1000);
     }
-    function checkOnline(){fetch('/sc/',{method:'HEAD'}).then(()=>{window.location.href='/sc/info';}).catch(()=>{setTimeout(checkOnline,2000);});}
+    function checkOnline(){
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        fetch('/sc/info', {cache: 'no-store', signal: controller.signal})
+            .then(res => {
+                clearTimeout(timeoutId);
+                if(res.ok) window.location.href='/sc/info';
+                else setTimeout(checkOnline, 2000);
+            })
+            .catch(()=>{
+                clearTimeout(timeoutId);
+                setTimeout(checkOnline, 2000);
+            });
+    }
     function scanNetworks(){
+        document.getElementById('overlayText').textContent = 'Scanning networks...';
         document.getElementById('overlay').style.display='flex';
         fetch('/sc/scan')
             .then(res=>res.json())
             .then(data=>{
                 data.sort((a,b)=>b.rssi-a.rssi);
+                document.getElementById('overlayText').textContent = 'Waiting for device...';
                 document.getElementById('overlay').style.display='none';
                 let list=document.getElementById('networkList');
                 list.innerHTML='';
@@ -459,7 +484,7 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
             <input type='submit' value='Connect'>
         </form>
         <form id="fileForm" action='/sc/upload' method='POST' enctype='multipart/form-data'>
-            <label for='file'>Choose a file:</label>
+            <label for='file'>Select firmware:</label>
             <div class="file-input-wrapper">
                 <input type='file' id='file' name='file' accept=".bin">
                 <span id="fileName">No file chosen</span>
@@ -473,7 +498,7 @@ const char PAGE_HTML_PART1[] PROGMEM = R"rawliteral(
     </div>
     <div id='overlay' class='overlay'>
         <div class='spinner'></div>
-            <div>Working...</div>
+            <div id='overlayText'>Waiting for device...</div>
     </div>
     <div id='popup'>
         <div class='content'>
@@ -533,6 +558,9 @@ void WebserverManager::_handleWifiConnect(AsyncWebServerRequest *request)
     }
 }
 
+void WebserverManager::_sendUploadPage(AsyncWebServerRequest *request) {
+    this->_sendPage(request);
+}
 
 void WebserverManager::loop()
 {
