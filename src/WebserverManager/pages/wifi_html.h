@@ -19,7 +19,6 @@ const char WIFI_HTML[] PROGMEM = R"rawliteral(
   <div class='toggle'><input type='checkbox' id='show' onclick='togglePassword()'><label for='show'>Show Password</label></div>
   <button id='connectBtn' onclick='doConnect()'>Connect</button>
   <button class='btn-outline' id='scanBtn' onclick='doScan()'>Scan Networks</button>
-  <button class='btn-outline' onclick='doDisconnect()'>Disconnect</button>
   <ul id='networkList'></ul>
 </div>
 <script>
