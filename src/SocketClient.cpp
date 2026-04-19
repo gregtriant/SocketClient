@@ -376,8 +376,8 @@ void SocketClient::init(const SocketClientConfig_t *config) {
     _handleWifi = config->handleWifi;
 
     // Copy socket config to _deviceInfo.
-    _deviceInfo.product = config->name;
-    _deviceInfo.device = config->type;
+    _deviceInfo.app = config->name;
+    _deviceInfo.type = config->type;
     _deviceInfo.version = config->version;
 
     _init();

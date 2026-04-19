@@ -90,9 +90,9 @@ typedef struct {
 } SocketClientConfig_t;
 
 typedef struct {
-    const char *product;
+    const char *app;
+    const char *type;
     float version;
-    const char *device;
 } DeviceInfo_t;
 
 /**

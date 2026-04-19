@@ -30,4 +30,6 @@ button:disabled{opacity:0.5;cursor:not-allowed}
 .spinner{border:6px solid #f3f3f3;border-top:6px solid var(--main-color);border-radius:50%;width:50px;height:50px;animation:spin 1s linear infinite;margin:0 auto}
 @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
 #spinnerContainer{display:none;padding:16px 0}
+.info-row{padding:4px 0;font-size:16px;border-bottom:1px solid var(--border-color);}
+pre{font-size:14px;white-space:pre-wrap;word-break:break-all;margin:0;}
 )rawliteral";

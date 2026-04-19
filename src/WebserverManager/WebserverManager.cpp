@@ -78,9 +78,9 @@ void WebserverManager::_setupWebServer()
                 status = this->_getCurrentStatus();
             }
             String res = "{";
-            res += "\"product\":\"" + String(_deviceInfo && _deviceInfo->product ? _deviceInfo->product : "") + "\",";
+            res += "\"app\":\"" + String(_deviceInfo && _deviceInfo->app ? _deviceInfo->app : "") + "\",";
             res += "\"version\":\"" + String(_deviceInfo->version) + "\",";
-            res += "\"device\":\"" + String(_deviceInfo && _deviceInfo->device ? _deviceInfo->device : "") + "\",";
+            res += "\"type\":\"" + String(_deviceInfo && _deviceInfo->type ? _deviceInfo->type : "") + "\",";
             res += "\"heap\":" + String(ESP.getFreeHeap()) + ",";
             res += "\"ssid\":\"" + String(WiFi.SSID()) + "\",";
             res += "\"rssi\":" + String(WiFi.RSSI()) ;//-+ ",";
@@ -181,7 +181,7 @@ void WebserverManager::_handleRoot(AsyncWebServerRequest *request) {
 
 void WebserverManager::_sendPage(AsyncWebServerRequest *request) {
     String html = FPSTR(PAGE_HTML_PART1);
-    String title = _deviceInfo && _deviceInfo->product ? _deviceInfo->product : "";
+    String title = _deviceInfo && _deviceInfo->app ? _deviceInfo->app : "";
     if (_deviceInfo && _deviceInfo->version) {
         title += " ";
         title += _deviceInfo->version;
@@ -193,7 +193,7 @@ void WebserverManager::_sendPage(AsyncWebServerRequest *request) {
 
 void WebserverManager::_sendRebootPage(AsyncWebServerRequest *request) {
     String html = FPSTR(REBOOT_HTML);
-    String title = _deviceInfo && _deviceInfo->product ? _deviceInfo->product : "";
+    String title = _deviceInfo && _deviceInfo->app ? _deviceInfo->app : "";
     if (_deviceInfo && _deviceInfo->version) {
         title += " ";
         title += _deviceInfo->version;
@@ -205,7 +205,7 @@ void WebserverManager::_sendRebootPage(AsyncWebServerRequest *request) {
 
 void WebserverManager::_sendUploadPage(AsyncWebServerRequest *request) {
     String html = FPSTR(UPLOAD_HTML);
-    String title = _deviceInfo && _deviceInfo->product ? _deviceInfo->product : "";
+    String title = _deviceInfo && _deviceInfo->app ? _deviceInfo->app : "";
     if (_deviceInfo && _deviceInfo->version) {
         title += " ";
         title += _deviceInfo->version;
@@ -217,7 +217,7 @@ void WebserverManager::_sendUploadPage(AsyncWebServerRequest *request) {
 
 void WebserverManager::_sendWifiPage(AsyncWebServerRequest *request) {
     String html = FPSTR(WIFI_HTML);
-    String title = _deviceInfo && _deviceInfo->product ? _deviceInfo->product : "";
+    String title = _deviceInfo && _deviceInfo->app ? _deviceInfo->app : "";
     if (_deviceInfo && _deviceInfo->version) {
         title += " ";
         title += _deviceInfo->version;

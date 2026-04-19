@@ -18,7 +18,10 @@ const char UPLOAD_HTML[] PROGMEM = R"rawliteral(
   </div>
   <div id="progressText"></div>
   <button id="uploadBtn" onclick="doUpload()">Upload</button>
-  <div id="spinnerContainer"><div class="spinner"></div></div>
+  <div id="spinnerContainer">
+    <div class="spinner"></div>
+    <p id="uploadMsg" style="text-align:center;margin-top:12px;font-size:16px"></p>
+  </div>
 </div>
 <script>
   function onFileChange(){
@@ -30,51 +33,45 @@ const char UPLOAD_HTML[] PROGMEM = R"rawliteral(
     if (!fileInput.files.length) return;
     fileInput.disabled = true;
     var btn = document.getElementById('uploadBtn');
-    btn.disabled = true;
+    btn.style.display = 'none';
+    var spinner = document.getElementById('spinnerContainer');
+    var uploadMsg = document.getElementById('uploadMsg');
     var progressText = document.getElementById('progressText');
-    progressText.style.display = 'block';
-    progressText.textContent = '0%';
+    spinner.style.display = 'block';
+    uploadMsg.textContent = 'Uploading... 0%';
     var formData = new FormData();
     formData.append('file', fileInput.files[0]);
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/sc/upload', true);
     xhr.upload.onprogress = function(e){
       if(e.lengthComputable){
-        progressText.textContent = Math.round((e.loaded/e.total)*100) + '%';
+        uploadMsg.textContent = 'Uploading... ' + Math.round((e.loaded/e.total)*100) + '%';
       }
     };
     xhr.onload = function(){
       if(xhr.status === 200){
-        progressText.textContent = 'Rebooting...';
-        btn.style.display = 'none';
-        document.getElementById('spinnerContainer').style.display = 'block';
+        uploadMsg.textContent = 'Rebooting...';
         setTimeout(checkOnline, 3000);
       } else {
+        spinner.style.display = 'none';
         progressText.textContent = 'Upload failed!';
+        progressText.style.display = 'block';
         fileInput.disabled = false;
-        btn.disabled = false;
+        btn.style.display = 'block';
       }
     };
     xhr.onerror = function(){
+      spinner.style.display = 'none';
       progressText.textContent = 'Upload error!';
+      progressText.style.display = 'block';
       fileInput.disabled = false;
-      btn.disabled = false;
+      btn.style.display = 'block';
     };
     xhr.send(formData);
   }
   function checkOnline(){
     fetch('/sc/',{method:'HEAD'})
-      .then(()=>{
-        document.getElementById('spinnerContainer').style.display = 'none';
-        document.getElementById('progressText').style.display = 'none';
-        var btn = document.getElementById('uploadBtn');
-        btn.style.display = 'block';
-        btn.disabled = false;
-        var fileInput = document.getElementById('file');
-        fileInput.disabled = false;
-        fileInput.value = '';
-        document.getElementById('fileName').textContent = 'No file chosen';
-      })
+      .then(()=>{ window.location.href='/sc/'; })
       .catch(()=>{setTimeout(checkOnline,3000);});
   }
 </script>
