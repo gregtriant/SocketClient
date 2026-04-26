@@ -20,6 +20,9 @@
 #error Platform not supported
 #endif
 
+#if defined(ESP32) || defined(LIBRETUYA)
+#include "EventBus/EventBus.h"
+#endif
 #include "NVS/NVSManager.h"
 #include "OTA/OTAManager.h"
 #include "SocketClientDefs.h"
