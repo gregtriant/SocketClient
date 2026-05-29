@@ -295,20 +295,19 @@ void SocketClient::reconnect() {
 
     WiFi.hostname(String(_deviceType) + "-" + String(_deviceApp));
 
-    if (_webSocket->isConnected()) {
-        _webSocket->disconnect();
-    }
     MY_LOGD(WS_TAG, "<reconnect>");
-    // Clean up any lingering resources
     if (_webSocket) {
-        _webSocket->~WebSocketsClient();
+        if (_webSocket->isConnected()) {
+            _webSocket->disconnect();
+        }
+        delete _webSocket;
         _webSocket = nullptr;
     }
     _webSocket = new WebSocketsClient();
     // Reinitialize the WebSocket connection
     _webSocket->onEvent(SocketClient_webSocketEvent);  // Reattach the event handler
     _webSocket->setReconnectInterval(5000);            // Set reconnect interval
-    _webSocket->enableHeartbeat(5000, 12000, 2);       // Enable heartbeat
+    _webSocket->enableHeartbeat(15000, 30000, 3);       // Enable heartbeat
 
 
     // Attempt to reconnect
@@ -325,7 +324,7 @@ void SocketClient::stopReconnect() {
 }
 
 void SocketClient::_init() {
-    _webSocket = new WebSocketsClient();
+    _webSocket = nullptr;
     _nvsManager = NULL;
     _wifiManager= NULL;
     if (_handleWifi) {
