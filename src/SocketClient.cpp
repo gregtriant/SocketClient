@@ -271,6 +271,14 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         String updateURL = _doc["url"];
         SC_LOGD(WS_TAG, "Update URL: %s", updateURL.c_str());
         _otaManager->startOTA(updateURL);
+    } else if (strcmp(_doc["message"], "fileReady") == 0) {
+        _downloadFile(
+            _doc["transferId"].as<String>(),
+            _doc["filename"].as<String>(),
+            _doc["size"].as<size_t>()
+        );
+    } else if (strcmp(_doc["message"], "requestFile") == 0) {
+        _uploadFile(_doc["filename"].as<String>());
     }
 }
 
@@ -431,6 +439,8 @@ void SocketClient::init(const SocketClientConfig_t *config) {
     ASSIGN_IF_NOT_NULLPTR(receivedCommand, config->receivedCommand);
     ASSIGN_IF_NOT_NULLPTR(entityChanged, config->entityChanged);
     ASSIGN_IF_NOT_NULLPTR(connected, config->connected);
+    ASSIGN_IF_NOT_NULLPTR(_onFileReceived, config->onFileReceived);
+    ASSIGN_IF_NOT_NULLPTR(_getFile,        config->getFile);
 
     _version = config->version;
     _port = config->port;
@@ -472,4 +482,12 @@ String SocketClient::getVersion() {
     String JsonToSend = "";
     serializeJson(_doc, JsonToSend);
     return JsonToSend;
+}
+
+void SocketClient::_downloadFile(const String &transferId, const String &filename, size_t size) {
+    SC_LOGD(WS_TAG, "TODO: download '%s' transferId=%s", filename.c_str(), transferId.c_str());
+}
+
+void SocketClient::_uploadFile(const String &filename) {
+    SC_LOGD(WS_TAG, "TODO: upload for filename='%s'", filename.c_str());
 }
