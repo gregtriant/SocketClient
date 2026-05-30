@@ -1,6 +1,8 @@
 #pragma once
 #include <ArduinoJson.h>
 
+#include "Log/Log.h"
+
 #if defined(ESP32) || defined(LIBRETUYA)
 #include <WiFi.h>
 #elif defined(ESP8266)

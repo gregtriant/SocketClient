@@ -20,12 +20,12 @@ void WifiManager::init()
 {
     // check if we have credentials in NVS
     if (!_wifi_ssid.isEmpty() && !_wifi_password.isEmpty()) {
-        MY_LOGI(WIFI_TAG, "WiFi credentials found in NVS.");
-        // MY_LOGI(WIFI_TAG, "SSID: %s", _wifi_ssid.c_str());
-        // MY_LOGI(WIFI_TAG, "Password: %s", _wifi_password.c_str());
+        SC_LOGI(WIFI_TAG, "WiFi credentials found in NVS.");
+        // SC_LOGI(WIFI_TAG, "SSID: %s", _wifi_ssid.c_str());
+        // SC_LOGI(WIFI_TAG, "Password: %s", _wifi_password.c_str());
         _connectingToWifi(_wifi_ssid, _wifi_password);
     } else {
-        MY_LOGW(WIFI_TAG, "No WiFi credentials found in NVS. Please set them.");
+        SC_LOGW(WIFI_TAG, "No WiFi credentials found in NVS. Please set them.");
         _initAPMode();
     }
 }
@@ -41,7 +41,7 @@ void WifiManager::loop()
         (_wifi_status != WL_DISCONNECTED) &&    // Prev status
         (wifiStatus == WL_CONNECTION_LOST || wifiStatus == WL_DISCONNECTED)) {
 
-        MY_LOGI(WIFI_TAG, "WiFi connection lost or disconnected. Trying to reconnect...");
+        SC_LOGI(WIFI_TAG, "WiFi connection lost or disconnected. Trying to reconnect...");
         _wifi_status = wifiStatus;
         _ap_time = now; // Reset AP time.
         if (_onInternetLost) {
@@ -54,7 +54,7 @@ void WifiManager::loop()
 
     if (now - _ap_time > 30000 && wifiStatus != WL_CONNECTED) { // if in AP mode for more than 30 sec, try to connect with old credentials
         _ap_time = now;
-        MY_LOGI(WIFI_TAG, "30 seconds in ap mode... Connecting...");
+        SC_LOGI(WIFI_TAG, "30 seconds in ap mode... Connecting...");
         init(); // connect with old credentials
     }
 
@@ -63,7 +63,7 @@ void WifiManager::loop()
             _connecting_time = now;
             _connecting_attempts++;
             // TODO: Here toggle connection led
-            MY_LOGI(WIFI_TAG, "%d...", _connecting_attempts);
+            SC_LOGI(WIFI_TAG, "%d...", _connecting_attempts);
             if (_connecting_attempts >= 15) {
                 _connecting_time = 0;
                 _connecting_attempts = 0;
@@ -84,7 +84,7 @@ void WifiManager::_connectingToWifi(String ssid, String password)
     _connecting_time = millis();
     _connecting_attempts = 0;
     _wifi_status = WiFi.status();
-    MY_LOGI(WIFI_TAG, "Connecting to WiFi: %s", _wifi_ssid.c_str());
+    SC_LOGI(WIFI_TAG, "Connecting to WiFi: %s", _wifi_ssid.c_str());
     if (WiFi.getMode() != CONST_MODE_AP_STA && WiFi.getMode() != CONST_MODE_STA) {
         WiFi.mode(WIFI_STA);
     }
@@ -95,13 +95,13 @@ void WifiManager::_connectingToWifi(String ssid, String password)
 void WifiManager::_wifiConnected()
 {
     if (WiFi.getMode() == CONST_MODE_AP_STA) {
-        MY_LOGI(WIFI_TAG, "Stopping AP+STA mode...");
+        SC_LOGI(WIFI_TAG, "Stopping AP+STA mode...");
         WiFi.softAPdisconnect(true);
         WiFi.mode(WIFI_STA);
     }
     _connecting_time = 0;     // Means connected.
     _connecting_attempts = 0; // Reset connecting attempts.
-    MY_LOGI(WIFI_TAG, "Connected to %s! IP address: %s", _wifi_ssid.c_str(), WiFi.localIP().toString().c_str());
+    SC_LOGI(WIFI_TAG, "Connected to %s! IP address: %s", _wifi_ssid.c_str(), WiFi.localIP().toString().c_str());
     _local_ip = WiFi.localIP().toString();
     _wifi_status = WiFi.status();
     if (_onInternetRestored) {
@@ -113,7 +113,7 @@ void WifiManager::_wifiConnected()
 void WifiManager::_initAPMode()
 {
     if (WiFi.getMode() == CONST_MODE_AP_STA) {
-        MY_LOGI(WIFI_TAG, "Already in AP+STA mode. Skipping...");
+        SC_LOGI(WIFI_TAG, "Already in AP+STA mode. Skipping...");
         return;
     }
     // stop STA mode
@@ -126,11 +126,11 @@ void WifiManager::_initAPMode()
     IPAddress subnet(255, 255, 255, 0);
     WiFi.softAPConfig(apIP, apIP, subnet);
 
-    MY_LOGI(WIFI_TAG, "AP ssid: %s", _ap_ssid.c_str());
-    MY_LOGI(WIFI_TAG, "AP pass: %s", _ap_password.c_str());
+    SC_LOGI(WIFI_TAG, "AP ssid: %s", _ap_ssid.c_str());
+    SC_LOGI(WIFI_TAG, "AP pass: %s", _ap_password.c_str());
     WiFi.softAP(_ap_ssid, _ap_password); // AP name and password
 
-    MY_LOGI(WIFI_TAG, "Starting AP+STA mode... IP: %s", WiFi.softAPIP().toString().c_str());
+    SC_LOGI(WIFI_TAG, "Starting AP+STA mode... IP: %s", WiFi.softAPIP().toString().c_str());
 
     _ap_time = millis();
 }

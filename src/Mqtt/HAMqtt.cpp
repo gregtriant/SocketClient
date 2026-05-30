@@ -6,7 +6,7 @@ HAMqtt::HAMqtt(const HAMqttConfig_t *config) : _mqttClient(_wifiClient) {
     _baseTopic = "homeassistant/device/" + String(config->deviceName);
     _mqttClient.setBufferSize(1024);
     _mqttClient.setServer(config->server, config->port);
-    MY_LOGD(MQTT_TAG, "MQTT configured: %s:%d", config->server, config->port);
+    SC_LOGD(MQTT_TAG, "MQTT configured: %s:%d", config->server, config->port);
 }
 
 void HAMqtt::addEntity(const HAEntity &entity) {
@@ -17,7 +17,7 @@ void HAMqtt::addEntity(const HAEntity &entity) {
 
 void HAMqtt::_connect() {
     if (WiFi.status() != WL_CONNECTED) {
-        MY_LOGD(MQTT_TAG, "WiFi not connected - skipping MQTT");
+        SC_LOGD(MQTT_TAG, "WiFi not connected - skipping MQTT");
         return;
     }
     if (_mqttClient.connected()) return;
@@ -30,7 +30,7 @@ void HAMqtt::_connect() {
     }
 
     String clientId = String(_config->deviceName) + "-" + WiFi.macAddress();
-    MY_LOGD(MQTT_TAG, "Connecting to %s:%d (clientId: %s)", _config->server, _config->port, clientId.c_str());
+    SC_LOGD(MQTT_TAG, "Connecting to %s:%d (clientId: %s)", _config->server, _config->port, clientId.c_str());
 
     bool ok;
     if (_config->username && strlen(_config->username) > 0) {
@@ -40,10 +40,10 @@ void HAMqtt::_connect() {
     }
 
     if (ok) {
-        MY_LOGD(MQTT_TAG, "Connected!");
+        SC_LOGD(MQTT_TAG, "Connected!");
         _setupDiscovery();
     } else {
-        MY_LOGE(MQTT_TAG, "Connection failed, rc=%d", _mqttClient.state());
+        SC_LOGE(MQTT_TAG, "Connection failed, rc=%d", _mqttClient.state());
     }
 }
 
@@ -61,7 +61,7 @@ void HAMqtt::loop() {
 }
 
 void HAMqtt::_setupDiscovery() {
-    MY_LOGD(MQTT_TAG, "Publishing HA autodiscovery (%d entities)", _entityCount);
+    SC_LOGD(MQTT_TAG, "Publishing HA autodiscovery (%d entities)", _entityCount);
     for (uint8_t i = 0; i < _entityCount; i++) {
         _publishDiscoveryForEntity(_entities[i]);
         delay(100);
@@ -91,18 +91,18 @@ void HAMqtt::_publishDiscoveryForEntity(const HAEntity &entity) {
 
     String topic = "homeassistant/sensor/" + _deviceId + "_" + entity.id + "/config";
     bool result = _mqttClient.publish(topic.c_str(), payload.c_str(), true);
-    MY_LOGD(MQTT_TAG, "Discovery [%s]: %s (%d bytes)", entity.id.c_str(), result ? "OK" : "FAILED", payload.length());
+    SC_LOGD(MQTT_TAG, "Discovery [%s]: %s (%d bytes)", entity.id.c_str(), result ? "OK" : "FAILED", payload.length());
 }
 
 void HAMqtt::publishEvent(const String &entityId, const String &action) {
     if (!_mqttClient.connected()) {
-        MY_LOGW(MQTT_TAG, "Cannot publish [%s] - not connected", entityId.c_str());
+        SC_LOGW(MQTT_TAG, "Cannot publish [%s] - not connected", entityId.c_str());
         return;
     }
     String topic   = _baseTopic + "/" + entityId + "/state";
     String payload = "{\"action\":\"" + action + "\",\"timestamp\":" + String(millis()) + "}";
     bool result = _mqttClient.publish(topic.c_str(), payload.c_str());
-    MY_LOGD(MQTT_TAG, "Event [%s/%s]: %s", entityId.c_str(), action.c_str(), result ? "OK" : "FAILED");
+    SC_LOGD(MQTT_TAG, "Event [%s/%s]: %s", entityId.c_str(), action.c_str(), result ? "OK" : "FAILED");
 }
 
 bool HAMqtt::isConnected() {

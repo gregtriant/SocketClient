@@ -7,6 +7,7 @@
 #include "SocketClientDefs.h"
 
 #include "TimeClient/TimeClient.h"
+#include <stdarg.h>
 
 #ifndef UPDATE_SIZE_UNKNOWN
 #define UPDATE_SIZE_UNKNOWN 0xFFFFFFFF
@@ -24,8 +25,8 @@ unsigned long SocketClient::reconnect_time = 30000;  //- 30 sec
 //     WebSocketsClient &wsc = sc->webSocket;
 //     if (!wsc.isConnected() && (last_reconnect == 0 || (millis() - last_reconnect) > reconnect_time)) {
 //         unsigned int x = millis() / (60000);
-//         MY_LOGD(WS_TAG, "%u", x);
-//         MY_LOGD(WS_TAG, "* reconnect *\n");
+//         SC_LOGD(WS_TAG, "%u", x);
+//         SC_LOGD(WS_TAG, "* reconnect *\n");
 //         last_reconnect = millis();
 //         reconnect_time += 60000;
 //         if (reconnect_time > max_reconnect_time)
@@ -36,21 +37,21 @@ unsigned long SocketClient::reconnect_time = 30000;  //- 30 sec
 
 //     if (wsc.isConnected()) {
 //         if (wsc.sendPing()) {
-//             MY_LOGD(WS_TAG, "*");
+//             SC_LOGD(WS_TAG, "*");
 //             // last_dog = millis();
 //         } else {
 //             // wsc.disconnect();
-//             MY_LOGD(WS_TAG, "@");
+//             SC_LOGD(WS_TAG, "@");
 //         }
 //     }
 
 //     if (last_dog > 0 && millis() - last_dog > watchdog_time) {
-//         MY_LOGD(WS_TAG, "* watchdog time *\n");
+//         SC_LOGD(WS_TAG, "* watchdog time *\n");
 //         wsc.disconnect();
 //         return true;
 //     }
 //     if (last_png > 0 && millis() - last_png > watchdog_time) {
-//         MY_LOGD(WS_TAG, "* png watchdog time *\n");
+//         SC_LOGD(WS_TAG, "* png watchdog time *\n");
 //         wsc.disconnect();
 //         return true;
 //     }
@@ -65,19 +66,19 @@ void SocketClient_sendStatus(JsonDoc status) {
 void SocketClient_receivedCommand(JsonDoc doc) {
     String stringData = "";
     serializeJson(doc, stringData);
-    MY_LOGD(WS_TAG, "%s", stringData.c_str());
+    SC_LOGD(WS_TAG, "%s", stringData.c_str());
 }
 
 void SocketClient_entityChanged(JsonDoc doc) {
     String stringData = "";
     serializeJson(doc, stringData);
-    MY_LOGD(WS_TAG, "%s", stringData.c_str());
+    SC_LOGD(WS_TAG, "%s", stringData.c_str());
 }
 
 void SocketClient_connected(JsonDoc doc) {
     String stringData = "";
     serializeJson(doc, stringData);
-    MY_LOGD(WS_TAG, "%s", stringData.c_str());
+    SC_LOGD(WS_TAG, "%s", stringData.c_str());
 }
 
 SocketClient *globalSC = nullptr;
@@ -93,7 +94,7 @@ SocketClient::SocketClient() :
     static int count = 0;
     count++;
     if (count > 1) {
-        MY_LOGE(WS_TAG, "Too many SocketClients created");
+        SC_LOGE(WS_TAG, "Too many SocketClients created");
         exit(-1);
     }
     _isSSL = true;
@@ -122,8 +123,55 @@ SocketClient::~SocketClient() {
 	_otaManager = nullptr;
 }
 
+static const char *DEBUG_LEVEL_STRINGS[] = { "error", "warning", "info", "debug", "verbose" };
+static const uint16_t DEBUG_LOG_MAX_TEXT_LENGTH = 256;
+
+// Strong override of the weak no-op in Log.cpp — routes SC_LOG* macros to the server.
+void _scRemoteLog(uint8_t level, const char *tag, const char *fmt, ...) {
+    if (!globalSC) return;
+    char buf[DEBUG_LOG_MAX_TEXT_LENGTH];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    globalSC->sendDebugLog(level, String(buf));
+}
+
+uint8_t SocketClient::_levelStringToIndex(const char *level) {
+    for (uint8_t i = 0; i <= DEBUG_LEVEL_VERBOSE; i++) {
+        if (strcmp(level, DEBUG_LEVEL_STRINGS[i]) == 0) return i;
+    }
+    return DEBUG_LEVEL_NONE;
+}
+
+void SocketClient::sendDebugLog(uint8_t level, const String &message) {
+    if (!_debugLoggingEnabled) return;
+    if (level > _debugLogLevelIndex) return;
+    if (!_webSocket || !_webSocket->isConnected()) return;
+
+    // Use a local doc to avoid clobbering _doc when called from within gotMessageSocket.
+    JsonDocument logDoc;
+    logDoc["message"] = "@debugLog";
+    logDoc["level"] = DEBUG_LEVEL_STRINGS[level];
+    logDoc["text"] = message.length() <= DEBUG_LOG_MAX_TEXT_LENGTH
+                         ? message
+                         : message.substring(0, DEBUG_LOG_MAX_TEXT_LENGTH);
+
+    if (_tc.hasTime()) {
+        int hh, mm, ss;
+        _tc.getTime(hh, mm, ss);
+        char tsBuf[10];
+        snprintf(tsBuf, sizeof(tsBuf), "%02d:%02d:%02d", hh, mm, ss);
+        logDoc["timestamp"] = tsBuf;
+    }
+
+    String textToSend = "";
+    serializeJson(logDoc, textToSend);
+    _webSocket->sendTXT(textToSend);
+}
+
 void SocketClient::sendLog(const String &message) {
-    if (!_webSocket->isConnected())
+    if (!_webSocket || !_webSocket->isConnected())
         return;
 
     _doc.clear();
@@ -132,12 +180,12 @@ void SocketClient::sendLog(const String &message) {
 
     String textToSend = "";
     serializeJson(_doc, textToSend);
-    MY_LOGD(WS_TAG, "Sending Log: %s", textToSend.c_str());
+    SC_LOGD(WS_TAG, "Sending Log: %s", textToSend.c_str());
     _webSocket->sendTXT(textToSend);
 }
 
 void SocketClient::sendNotification(const String &message) {
-    if (!_webSocket->isConnected()) {
+    if (!_webSocket || !_webSocket->isConnected()) {
         return;
     }
 
@@ -147,12 +195,12 @@ void SocketClient::sendNotification(const String &message) {
 
     String textToSend = "";
     serializeJson(_doc, textToSend);
-    MY_LOGD(WS_TAG, "Sending notification: %s", textToSend.c_str());
+    SC_LOGD(WS_TAG, "Sending notification: %s", textToSend.c_str());
     _webSocket->sendTXT(textToSend);
 }
 
 void SocketClient::sendNotification(const String &message, const JsonDoc &doc) {
-    if (!_webSocket->isConnected()) {
+    if (!_webSocket || !_webSocket->isConnected()) {
         return;
     }
 
@@ -163,7 +211,7 @@ void SocketClient::sendNotification(const String &message, const JsonDoc &doc) {
 
     String textToSend = "";
     serializeJson(_doc, textToSend);
-    MY_LOGD(WS_TAG, "Sending notification: %s", textToSend.c_str());
+    SC_LOGD(WS_TAG, "Sending notification: %s", textToSend.c_str());
     _webSocket->sendTXT(textToSend);
 }
 
@@ -172,7 +220,7 @@ bool SocketClient::hasTime(){
 }
 
 void SocketClient::gotMessageSocket(uint8_t *payload) {
-    MY_LOGD(WS_TAG, "Got data: %s", payload);
+    SC_LOGD(WS_TAG, "Got data: %s", payload);
     deserializeJson(_doc, payload);
     if (strcmp(_doc["message"], "connected") == 0) {
         // Get the Time first before the JSON gets cleared.
@@ -182,23 +230,37 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
                 _local_time_zone = tz;
                 _tc.begin(_local_time_zone.c_str());
             } else {
-                MY_LOGE(WS_TAG, "Timezone missing or invalid!");
+                SC_LOGE(WS_TAG, "Timezone missing or invalid!");
             }
         }
 
-		if (!_doc["data"].isNull()) {
+        // Read debug logging config sent by the server on connect.
+        if (!_doc["debug"].isNull()) {
+            _debugLoggingEnabled = _doc["debug"]["enabled"] | false;
+            const char *lvl = _doc["debug"]["level"];
+            if (lvl) _debugLogLevelIndex = _levelStringToIndex(lvl);
+        }
+        SC_LOGD(WS_TAG, "Debug logging: %s, level index: %d", _debugLoggingEnabled ? "on" : "off", _debugLogLevelIndex);
+
+        if (!_doc["data"].isNull()) {
             // check if _doc["data"] is a string
             if (_doc["data"].is<const char *>()) {
-                MY_LOGD(WS_TAG, "data is string");
+                SC_LOGD(WS_TAG, "data is string");
                 // TODO: remove this when the server is fixed and all the devices are updated
                 JsonDocument tempDoc;//-(2024);
                 deserializeJson(tempDoc, _doc["data"]);
                 connected(tempDoc);
             } else {
-                MY_LOGD(WS_TAG, "data is json");
+                SC_LOGD(WS_TAG, "data is json");
                 connected(_doc["data"]);
             }
-		}
+        }
+    } else if (strcmp(_doc["message"], "debugLoggingConfig") == 0) {
+        _debugLoggingEnabled = _doc["enabled"] | false;
+        if (!_doc["level"].isNull()) {
+            _debugLogLevelIndex = _levelStringToIndex(_doc["level"]);
+        }
+        SC_LOGD(WS_TAG, "Debug logging config updated: %s, level index: %d", _debugLoggingEnabled ? "on" : "off", _debugLogLevelIndex);
     } else if (strcmp(_doc["message"], "command") == 0) {
 		receivedCommand(_doc);
     } else if (strcmp(_doc["message"], "askStatus") == 0) {
@@ -207,13 +269,13 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         entityChanged(_doc);
     } else if (strcmp(_doc["message"], "update") == 0) {
         String updateURL = _doc["url"];
-        MY_LOGD(WS_TAG, "Update URL: %s", updateURL.c_str());
+        SC_LOGD(WS_TAG, "Update URL: %s", updateURL.c_str());
         _otaManager->startOTA(updateURL);
     }
 }
 
 void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
-    if (!_webSocket->isConnected()) {
+    if (!_webSocket || !_webSocket->isConnected()) {
         return;
     }
 	_doc.clear();
@@ -224,17 +286,17 @@ void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
 
     String JsonToSend = "";
     serializeJson(_doc, JsonToSend);
-    MY_LOGD(WS_TAG, "Returning status: %s", JsonToSend.c_str());
+    SC_LOGD(WS_TAG, "Returning status: %s", JsonToSend.c_str());
     _webSocket->sendTXT(JsonToSend);
 }
 
 void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
     switch (type) {
         case WStype_ERROR:
-            MY_LOGD(WS_TAG, "Error! : %s", payload);
+            SC_LOGD(WS_TAG, "Error! : %s", payload);
             break;
         case WStype_DISCONNECTED:
-            MY_LOGD(WS_TAG, "Disconnected!");
+            SC_LOGD(WS_TAG, "Disconnected!");
             globalSC->last_dog = 0;
             globalSC->last_png = 0;
             break;
@@ -242,7 +304,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
             globalSC->_doc.clear();
             globalSC->last_dog = millis();
             globalSC->last_png = millis();
-            // MY_LOGD(WS_TAG, "Connected to url: %s", payload);
+            // SC_LOGD(WS_TAG, "Connected to url: %s", payload);
             // Prepare and send a "connect" message
             globalSC->_doc["message"] = "connect";
             globalSC->_doc["deviceId"] = WiFi.macAddress();//- globalSC->_wifiManager->getMacAddress();
@@ -257,9 +319,9 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
             globalSC->reconnect_time = 30000;
             bool result = globalSC->_webSocket->sendTXT(JsonToSend);
             if (result) {
-                MY_LOGD(WS_TAG, "Connected to the server!");
+                SC_LOGD(WS_TAG, "Connected to the server!");
             } else {
-                MY_LOGE(WS_TAG, "Failed to send connection message");
+                SC_LOGE(WS_TAG, "Failed to send connection message");
             }
         } break;
         case WStype_TEXT: {
@@ -268,7 +330,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
         } break;
         case WStype_BIN:
             globalSC->last_dog = millis();
-            MY_LOGD(WS_TAG, "Get binary length: %u", length);
+            SC_LOGD(WS_TAG, "Get binary length: %u", length);
             break;
         case WStype_FRAGMENT_TEXT_START:
         case WStype_FRAGMENT_BIN_START:
@@ -277,11 +339,11 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
             // Not handled
             break;
         case WStype_PING:
-            MY_LOGV2(".");
+            SC_LOGV2(".");
             globalSC->last_png = millis();
             break;
         case WStype_PONG:
-            MY_LOGV2("-");
+            SC_LOGV2("-");
             globalSC->last_dog = millis();
             break;
     }
@@ -289,13 +351,13 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
 
 void SocketClient::reconnect() {
     if (!WiFi.isConnected()) {
-        MY_LOGD(WS_TAG, "<No WiFi>");
+        SC_LOGD(WS_TAG, "<No WiFi>");
         return;
     }
 
     WiFi.hostname(String(_deviceType) + "-" + String(_deviceApp));
 
-    MY_LOGD(WS_TAG, "<reconnect>");
+    SC_LOGD(WS_TAG, "<reconnect>");
     if (_webSocket) {
         if (_webSocket->isConnected()) {
             _webSocket->disconnect();
@@ -319,6 +381,7 @@ void SocketClient::reconnect() {
 }
 
 void SocketClient::stopReconnect() {
+    if (!_webSocket) return;
     _webSocket->setReconnectInterval(MAX_ULONG);
     _webSocket->enableHeartbeat(MAX_ULONG, MAX_ULONG, 255);
 }
@@ -343,7 +406,7 @@ void SocketClient::_init() {
 
 void SocketClient::initWebserver(int port) {
     if (_webserverManager) {
-        MY_LOGW(WS_TAG, "Webserver already initialized");
+        SC_LOGW(WS_TAG, "Webserver already initialized");
         return;
     }
     _webserverManager = new WebserverManager(port, _wifiManager, &_deviceInfo,
@@ -391,7 +454,7 @@ void SocketClient::loop() {
     if (_wifiManager) _wifiManager->loop();
     if (_webserverManager) _webserverManager->loop();
 
-    _webSocket->loop();
+    if (_webSocket) _webSocket->loop();
     _tc.loop();
 }
 
