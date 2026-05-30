@@ -531,5 +531,62 @@ void SocketClient::_downloadFile(const String &transferId, const String &filenam
 }
 
 void SocketClient::_uploadFile(const String &filename) {
-    SC_LOGD(WS_TAG, "TODO: upload for filename='%s'", filename.c_str());
+    const String boundary = "ESP32Boundary";
+    String fname = filename.isEmpty() ? "upload.bin" : filename;
+
+    // Get file content
+    uint8_t *fileBuf = (uint8_t *)malloc(4096);
+    if (!fileBuf) {
+        SC_LOGE(WS_TAG, "upload: OOM (fileBuf)");
+        return;
+    }
+
+    size_t fileSize = 0;
+    if (_getFile) {
+        fileSize = _getFile(fname, fileBuf, 4096);
+    } else {
+        const char *testPayload = "Hello from device!";
+        fileSize = strlen(testPayload);
+        memcpy(fileBuf, testPayload, fileSize);
+    }
+
+    // Build multipart body
+    String header = "--" + boundary + "\r\n"
+                    "Content-Disposition: form-data; name=\"file\"; filename=\"" + fname + "\"\r\n"
+                    "Content-Type: application/octet-stream\r\n"
+                    "\r\n";
+    String footer = "\r\n--" + boundary + "--\r\n";
+
+    size_t totalLen = header.length() + fileSize + footer.length();
+    uint8_t *body = (uint8_t *)malloc(totalLen);
+    if (!body) {
+        SC_LOGE(WS_TAG, "upload: OOM (body)");
+        free(fileBuf);
+        return;
+    }
+
+    memcpy(body,                                   header.c_str(),  header.length());
+    memcpy(body + header.length(),                 fileBuf,         fileSize);
+    memcpy(body + header.length() + fileSize,      footer.c_str(),  footer.length());
+    free(fileBuf);
+
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+
+    String url = String("https://") + _socketHostURL + "/api/devices/files/upload";
+    if (!http.begin(client, url)) {
+        SC_LOGE(WS_TAG, "upload: http.begin failed");
+        free(body);
+        return;
+    }
+    http.addHeader("x-mac-address", WiFi.macAddress());
+    http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
+
+    int code = http.POST(body, totalLen);
+    SC_LOGD(WS_TAG, "upload: HTTP %d", code);
+    Serial.printf("[FileTransfer] upload response: %d\n", code);
+
+    free(body);
+    http.end();
 }
