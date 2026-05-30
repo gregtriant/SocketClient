@@ -70,6 +70,11 @@ class SocketClient {
     EntityChangedFunction entityChanged;
     ConnectedFunction connected;
 
+    bool _debugLoggingEnabled = false;
+    uint8_t _debugLogLevelIndex = DEBUG_LEVEL_INFO;  // send error/warning/info by default
+
+    static uint8_t _levelStringToIndex(const char *level);
+
     void gotMessageSocket(uint8_t *payload);
     void _init();
     // static bool watchdog(void *v);
@@ -89,6 +94,7 @@ public:
     void stopReconnect();
     void sendStatusWithSocket(bool save = false);  //- do the default (no receiverid)
     void sendLog(const String &message);
+    void sendDebugLog(uint8_t level, const String &message);
     void sendNotification(const String &message);
     void sendNotification(const String &message, const JsonDoc &data);
     bool isConnected() { return _webSocket->isConnected(); }

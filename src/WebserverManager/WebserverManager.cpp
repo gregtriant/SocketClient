@@ -13,6 +13,9 @@ WebserverManager::WebserverManager(int port, WifiManager *wifiManager, DeviceInf
   _getCurrentStatus = getCurrentStatus;
   _deviceInfo = deviceInfo;
   _setupWebServer();
+  _server.begin();
+  _started = true;
+  SC_LOGD(SERVER_TAG, "Webserver started");
 }
 
 
@@ -33,7 +36,7 @@ void WebserverManager::_setupWebServer()
     _server.on("/sc/wifi/disconnect", HTTP_GET, [this](AsyncWebServerRequest *request)
         {
             request->send(200, "text/plain", "Disconnecting from Wi-Fi...");
-            MY_LOGD(SERVER_TAG, "Disconnecting from Wi-Fi...");
+            SC_LOGD(SERVER_TAG, "Disconnecting from Wi-Fi...");
             WiFi.disconnect(true);
             //  _initAPMode();
         });
@@ -46,7 +49,7 @@ void WebserverManager::_setupWebServer()
     _server.on("/sc/reboot", HTTP_POST, [this](AsyncWebServerRequest *request)
         {
             request->send(200, "text/plain", "Rebooting...");
-            MY_LOGD(SERVER_TAG, "Rebooting...");
+            SC_LOGD(SERVER_TAG, "Rebooting...");
             ESP.restart();
         });
 
@@ -93,7 +96,7 @@ void WebserverManager::_setupWebServer()
         {
             int16_t n = WiFi.scanComplete();
             if (n == WIFI_SCAN_FAILED) {
-                MY_LOGD(SERVER_TAG, "Starting async WiFi scan...");
+                SC_LOGD(SERVER_TAG, "Starting async WiFi scan...");
                 WiFi.scanNetworks(true);
                 request->send(202, "application/json", "[]");
                 return;
@@ -133,7 +136,7 @@ void WebserverManager::_setupWebServer()
         },
         [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
             if (!index) {
-                MY_LOGD(SERVER_TAG, "Update Start: %s", filename.c_str());
+                SC_LOGD(SERVER_TAG, "Update Start: %s", filename.c_str());
                 // Use UPDATE_SIZE_UNKNOWN to tell the library we don't know the size yet
                 if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
                     Update.printError(Serial);
@@ -146,7 +149,7 @@ void WebserverManager::_setupWebServer()
             }
             if (final) {
                 if (Update.end(true)) { // true = sets the size to the current index
-                    MY_LOGD(SERVER_TAG, "Update Success: %u bytes", (uint32_t)(index + len));
+                    SC_LOGD(SERVER_TAG, "Update Success: %u bytes", (uint32_t)(index + len));
                 } else {
                     Update.printError(Serial);
                 }
@@ -164,11 +167,10 @@ void WebserverManager::_setupWebServer()
     _server.on("/sc/", HTTP_GET, [this](AsyncWebServerRequest *request) { this->_handleRoot(request); });
     _server.on("/sc", HTTP_GET, [this](AsyncWebServerRequest *request) { this->_handleRoot(request); });
 
-    // Serve the form for any URL
+    // Redirect any unknown URL to the main page
     _server.onNotFound([this](AsyncWebServerRequest *request)
         {
-            //- this->_handleRoot(request);
-            request->send(404, "text/plain", "404 Not Found");
+            request->redirect("/sc/wifi");
         });
 }
 
@@ -248,7 +250,7 @@ void WebserverManager::_handleWifiConnect(AsyncWebServerRequest *request)
 
     if (ssid.length() > 0 && password.length() > 0) {
         request->send(200, "text/plain", "Connecting to Wi-Fi...");
-        MY_LOGD(SERVER_TAG, "Received Wi-Fi credentials");
+        SC_LOGD(SERVER_TAG, "Received Wi-Fi credentials");
 
         _wifiManager->saveWifiCredentials(ssid, password);
         _wifiManager->init();
@@ -260,9 +262,4 @@ void WebserverManager::_handleWifiConnect(AsyncWebServerRequest *request)
 
 void WebserverManager::loop()
 {
-    if (!_started && WiFi.isConnected()) {
-        _server.begin();
-        _started = true;
-        MY_LOGD(SERVER_TAG, "Webserver started");
-    }
 }
