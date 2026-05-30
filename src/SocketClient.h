@@ -69,6 +69,8 @@ class SocketClient {
     ReceivedCommandFunction receivedCommand;
     EntityChangedFunction entityChanged;
     ConnectedFunction connected;
+    FileReceivedFunction _onFileReceived;
+    GetFileFunction      _getFile;
 
     bool _debugLoggingEnabled = false;
     uint8_t _debugLogLevelIndex = DEBUG_LEVEL_INFO;  // send error/warning/info by default
@@ -77,6 +79,8 @@ class SocketClient {
 
     void gotMessageSocket(uint8_t *payload);
     void _init();
+    void _downloadFile(const String &transferId, const String &filename, size_t size);
+    void _uploadFile(const String &filename);
     // static bool watchdog(void *v);
     static unsigned long last_dog;
     static unsigned long last_png;
