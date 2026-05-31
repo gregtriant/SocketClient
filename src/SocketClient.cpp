@@ -271,6 +271,14 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         String updateURL = _doc["url"];
         SC_LOGD(WS_TAG, "Update URL: %s", updateURL.c_str());
         _otaManager->startOTA(updateURL);
+    } else if (strcmp(_doc["message"], "fileReady") == 0) {
+        _downloadFile(
+            _doc["transferId"].as<String>(),
+            _doc["filename"].as<String>(),
+            _doc["size"].as<size_t>()
+        );
+    } else if (strcmp(_doc["message"], "requestFile") == 0) {
+        _uploadFile(_doc["filename"].as<String>());
     }
 }
 
@@ -431,6 +439,8 @@ void SocketClient::init(const SocketClientConfig_t *config) {
     ASSIGN_IF_NOT_NULLPTR(receivedCommand, config->receivedCommand);
     ASSIGN_IF_NOT_NULLPTR(entityChanged, config->entityChanged);
     ASSIGN_IF_NOT_NULLPTR(connected, config->connected);
+    ASSIGN_IF_NOT_NULLPTR(_onFileReceived, config->onFileReceived);
+    ASSIGN_IF_NOT_NULLPTR(_getFile,        config->getFile);
 
     _version = config->version;
     _port = config->port;
@@ -472,4 +482,111 @@ String SocketClient::getVersion() {
     String JsonToSend = "";
     serializeJson(_doc, JsonToSend);
     return JsonToSend;
+}
+
+void SocketClient::_downloadFile(const String &transferId, const String &filename, size_t size) {
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+
+    String url = String("https://") + _socketHostURL + "/api/devices/files/" + transferId;
+    if (!http.begin(client, url)) {
+        SC_LOGE(WS_TAG, "download: http.begin failed");
+        return;
+    }
+    http.addHeader("x-mac-address", WiFi.macAddress());
+
+    int code = http.GET();
+    if (code != HTTP_CODE_OK) {
+        SC_LOGE(WS_TAG, "download: HTTP %d", code);
+        http.end();
+        return;
+    }
+
+    size_t clampedSize = (size < 4096) ? size : 4096;
+    uint8_t *buf = (uint8_t *)malloc(clampedSize);
+    if (!buf) {
+        SC_LOGE(WS_TAG, "download: OOM");
+        http.end();
+        return;
+    }
+
+    size_t actual = http.getStream().readBytes(buf, clampedSize);
+    http.end();
+
+    SC_LOGD(WS_TAG, "download: '%s' %u/%u bytes", filename.c_str(), actual, clampedSize);
+    Serial.printf("[FileTransfer] received '%s' (%u bytes)\n", filename.c_str(), actual);
+    Serial.print("[FileTransfer] first bytes: ");
+    size_t preview = (actual < 32) ? actual : 32;
+    for (size_t i = 0; i < preview; i++) {
+        Serial.printf("%02X ", buf[i]);
+    }
+    Serial.println();
+
+    if (_onFileReceived) {
+        _onFileReceived(filename, buf, actual);
+    }
+
+    free(buf);
+}
+
+void SocketClient::_uploadFile(const String &filename) {
+    const String boundary = "ESP32Boundary";
+    String fname = filename.isEmpty() ? "upload.bin" : filename;
+
+    // Get file content
+    uint8_t *fileBuf = (uint8_t *)malloc(4096);
+    if (!fileBuf) {
+        SC_LOGE(WS_TAG, "upload: OOM (fileBuf)");
+        return;
+    }
+
+    size_t fileSize = 0;
+    if (_getFile) {
+        fileSize = _getFile(fname, fileBuf, 4096);
+    } else {
+        const char *testPayload = "Hello from device!";
+        fileSize = strlen(testPayload);
+        memcpy(fileBuf, testPayload, fileSize);
+    }
+
+    // Build multipart body
+    String header = "--" + boundary + "\r\n"
+                    "Content-Disposition: form-data; name=\"file\"; filename=\"" + fname + "\"\r\n"
+                    "Content-Type: application/octet-stream\r\n"
+                    "\r\n";
+    String footer = "\r\n--" + boundary + "--\r\n";
+
+    size_t totalLen = header.length() + fileSize + footer.length();
+    uint8_t *body = (uint8_t *)malloc(totalLen);
+    if (!body) {
+        SC_LOGE(WS_TAG, "upload: OOM (body)");
+        free(fileBuf);
+        return;
+    }
+
+    memcpy(body,                                   header.c_str(),  header.length());
+    memcpy(body + header.length(),                 fileBuf,         fileSize);
+    memcpy(body + header.length() + fileSize,      footer.c_str(),  footer.length());
+    free(fileBuf);
+
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+
+    String url = String("https://") + _socketHostURL + "/api/devices/files/upload";
+    if (!http.begin(client, url)) {
+        SC_LOGE(WS_TAG, "upload: http.begin failed");
+        free(body);
+        return;
+    }
+    http.addHeader("x-mac-address", WiFi.macAddress());
+    http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
+
+    int code = http.POST(body, totalLen);
+    SC_LOGD(WS_TAG, "upload: HTTP %d", code);
+    Serial.printf("[FileTransfer] upload response: %d\n", code);
+
+    free(body);
+    http.end();
 }
