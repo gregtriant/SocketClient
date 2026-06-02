@@ -1,6 +1,6 @@
 #pragma once
-#include <ArduinoJson.h>
 #include <vector>
+#include <ArduinoJson.h>
 
 #include "Log/Log.h"
 
@@ -92,8 +92,8 @@ typedef struct {
     ReceivedCommandFunction receivedCommand;
     EntityChangedFunction entityChanged;
     ConnectedFunction connected;
-    FileReceivedFunction  fileReceived  = nullptr;
-    FileRequestedFunction fileRequested = nullptr;
+    FileReceivedFunction  fileReceived  = nullptr; // called with downloaded file bytes; nullptr = no-op
+    FileRequestedFunction fileRequested = nullptr; // fill buf with upload data; nullptr = sends built-in test payload
 } SocketClientConfig_t;
 
 typedef struct {
