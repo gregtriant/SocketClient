@@ -1,5 +1,6 @@
 #pragma once
 #include <ArduinoJson.h>
+#include <vector>
 
 #include "Log/Log.h"
 
@@ -63,8 +64,8 @@ typedef std::function<void(JsonDoc doc)> SendStatusFunction;
 typedef std::function<void(JsonDoc doc)> ReceivedCommandFunction;
 typedef std::function<void(JsonDoc doc)> EntityChangedFunction;
 typedef std::function<void(JsonDoc doc)> ConnectedFunction;
-typedef std::function<void(const String &filename, const uint8_t *buf, size_t size)> FileReceivedFunction;
-typedef std::function<size_t(const String &filename, uint8_t *buf, size_t maxSize)>  GetFileFunction;
+typedef std::function<void(const String &filename, const std::vector<uint8_t> &buf)> FileReceivedFunction;
+typedef std::function<void(const String &filename, std::vector<uint8_t> &buf)>       FileRequestedFunction;
 
 
 /**
@@ -91,8 +92,8 @@ typedef struct {
     ReceivedCommandFunction receivedCommand;
     EntityChangedFunction entityChanged;
     ConnectedFunction connected;
-    FileReceivedFunction onFileReceived = nullptr; // called after successful download; nullptr = no-op
-    GetFileFunction      getFile        = nullptr; // returns bytes to upload; nullptr = built-in test payload
+    FileReceivedFunction  fileReceived  = nullptr;
+    FileRequestedFunction fileRequested = nullptr;
 } SocketClientConfig_t;
 
 typedef struct {
