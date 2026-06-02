@@ -69,8 +69,8 @@ class SocketClient {
     ReceivedCommandFunction receivedCommand;
     EntityChangedFunction entityChanged;
     ConnectedFunction connected;
-    FileReceivedFunction _onFileReceived;
-    GetFileFunction      _getFile;
+    FileReceivedFunction  _fileReceived;
+    FileRequestedFunction _fileRequested;
 
     bool _debugLoggingEnabled = false;
     uint8_t _debugLogLevelIndex = DEBUG_LEVEL_INFO;  // send error/warning/info by default
