@@ -500,7 +500,7 @@ void SocketClient::_downloadFile(const String &url, const String &filename, size
         ok = http.begin(plainClient, url);
     }
     if (!ok) {
-        SC_LOGE(WS_TAG, "download: http.begin failed");
+        SC_LOGE(WS_TAG, "download: http.begin failed: %s", url.c_str());
         return;
     }
     http.addHeader("x-mac-address", WiFi.macAddress());
@@ -569,7 +569,7 @@ void SocketClient::_uploadFile(const String &url, const String &filename) {
         ok = http.begin(plainClient, url);
     }
     if (!ok) {
-        SC_LOGE(WS_TAG, "upload: http.begin failed");
+        SC_LOGE(WS_TAG, "upload: http.begin failed: %s", url.c_str());
         return;
     }
     http.addHeader("x-mac-address", WiFi.macAddress());

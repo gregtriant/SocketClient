@@ -9,6 +9,7 @@
 #include <DNSServer.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
+#include <WiFiClient.h>
 #include <ESPAsyncWebServer.h>
 
 #elif defined(ESP8266)
