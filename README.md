@@ -10,6 +10,7 @@ A PlatformIO library for ESP32/ESP8266 that connects your device to the [sensord
 - NTP time sync with server-provided timezone
 - Remote debug logging with server-side level filtering
 - OTA firmware updates triggered by the server
+- Bidirectional file transfer over HTTPS (server→device download, device→server upload)
 - Home Assistant MQTT autodiscovery (optional)
 - ESP32 and ESP8266 support
 
@@ -41,10 +42,18 @@ SocketClientConfig_t config = {
     .isSSL       = true,
     .token       = "your-token-here",
     .handleWifi  = true,
-    .sendStatus  = [](JsonDoc doc) { doc["state"] = "ok"; },
+    .sendStatus      = [](JsonDoc doc) { doc["state"] = "ok"; },
     .receivedCommand = [](JsonDoc doc) { /* handle commands */ },
     .entityChanged   = [](JsonDoc doc) { },
     .connected       = [](JsonDoc doc) { },
+    // optional file transfer callbacks:
+    .fileReceived  = [](const String &filename, const std::vector<uint8_t> &buf) {
+        // called when server pushes a file to the device
+    },
+    .fileRequested = [](const String &filename, std::vector<uint8_t> &buf) {
+        // called when server requests a file from the device; fill buf
+        buf.assign(filename.c_str(), filename.c_str() + filename.length());
+    },
 };
 
 void setup() {
@@ -76,6 +85,8 @@ All options are set via `SocketClientConfig_t`:
 | `receivedCommand` | callback | — | Called when server sends a command |
 | `entityChanged` | callback | — | Called when a tracked entity changes on the server |
 | `connected` | callback | — | Called after successful server handshake |
+| `fileReceived` | callback | `nullptr` | Called with downloaded file bytes after a server push; `nullptr` = no-op |
+| `fileRequested` | callback | `nullptr` | Fill `buf` with bytes to upload on server request; `nullptr` = sends built-in test payload |
 
 ## Public API
 
@@ -180,6 +191,38 @@ Unknown URLs redirect to `/sc/wifi`.
 
 Use `sc.getServer()` to add your own routes to the same `AsyncWebServer` instance.
 
+## File Transfer
+
+The library supports bidirectional file transfer between the server and device over HTTPS, triggered by WebSocket messages.
+
+### Server → Device (download)
+
+When the server sends a `fileReady` message, the library performs an HTTPS GET, reads up to 4096 bytes, and calls `fileReceived` with the result:
+
+```cpp
+.fileReceived = [](const String &filename, const std::vector<uint8_t> &buf) {
+    // buf contains the file bytes; read buf.data() / buf.size()
+    String text((const char *)buf.data(), buf.size());
+    Serial.printf("Got '%s': %s\n", filename.c_str(), text.c_str());
+},
+```
+
+### Device → Server (upload)
+
+When the server sends a `requestFile` message, the library calls `fileRequested` with an empty vector. Fill it with whatever bytes you want to upload:
+
+```cpp
+.fileRequested = [](const String &filename, std::vector<uint8_t> &buf) {
+    // fill buf — the library will POST it to the server as multipart/form-data
+    String payload = "Hello from device!";
+    buf.assign(payload.c_str(), payload.c_str() + payload.length());
+},
+```
+
+If `fileRequested` is `nullptr`, the library sends the string `"Hello from device!"` as a default test payload.
+
+**Limits:** Files larger than 4096 bytes are rejected with an error log. Auth is via `x-mac-address` header (device must be registered on the server).
+
 ## OTA Updates
 
 OTA can be triggered two ways:
@@ -208,6 +251,8 @@ OTA can be triggered two ways:
 | `askStatus` | *(internal)* | Triggers `sendStatusWithSocket()` automatically |
 | `entityChanged` | `entityChanged(doc)` | Entity name + new value |
 | `update` | *(internal)* | Triggers OTA from `url` field |
+| `fileReady` | `fileReceived(filename, buf)` | Library downloads file and calls callback with bytes |
+| `requestFile` | `fileRequested(filename, buf)` | Library calls callback, then POSTs filled buffer to server |
 | `debugLoggingConfig` | *(internal)* | Updates `{enabled, level}` at runtime |
 
 > **Note:** All callbacks share a single internal `JsonDocument`. Copy any values you need before returning from the callback.
