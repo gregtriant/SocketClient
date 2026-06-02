@@ -273,12 +273,15 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         _otaManager->startOTA(updateURL);
     } else if (strcmp(_doc["message"], "fileReady") == 0) {
         _downloadFile(
-            _doc["transferId"].as<String>(),
+            _doc["url"].as<String>(),
             _doc["filename"].as<String>(),
             _doc["size"].as<size_t>()
         );
     } else if (strcmp(_doc["message"], "requestFile") == 0) {
-        _uploadFile(_doc["filename"].as<String>());
+        _uploadFile(
+            _doc["url"].as<String>(),
+            _doc["filename"].as<String>()
+        );
     }
 }
 
@@ -484,13 +487,19 @@ String SocketClient::getVersion() {
     return JsonToSend;
 }
 
-void SocketClient::_downloadFile(const String &transferId, const String &filename, size_t size) {
-    WiFiClientSecure client;
-    client.setInsecure();
+void SocketClient::_downloadFile(const String &url, const String &filename, size_t size) {
+    WiFiClientSecure secureClient;
+    WiFiClient plainClient;
     HTTPClient http;
 
-    String url = String("https://") + _socketHostURL + "/api/devices/files/" + transferId;
-    if (!http.begin(client, url)) {
+    bool ok;
+    if (url.startsWith("https://")) {
+        secureClient.setInsecure();
+        ok = http.begin(secureClient, url);
+    } else {
+        ok = http.begin(plainClient, url);
+    }
+    if (!ok) {
         SC_LOGE(WS_TAG, "download: http.begin failed");
         return;
     }
@@ -515,7 +524,7 @@ void SocketClient::_downloadFile(const String &transferId, const String &filenam
     }
 }
 
-void SocketClient::_uploadFile(const String &filename) {
+void SocketClient::_uploadFile(const String &url, const String &filename) {
     const String boundary = "ESP32Boundary";
     String fname = filename.isEmpty() ? "upload.bin" : filename;
 
@@ -548,12 +557,18 @@ void SocketClient::_uploadFile(const String &filename) {
     body.insert(body.end(), fileBuf.begin(), fileBuf.end());
     body.insert(body.end(), footer.c_str(), footer.c_str() + footer.length());
 
-    WiFiClientSecure client;
-    client.setInsecure();
+    WiFiClientSecure secureClient;
+    WiFiClient plainClient;
     HTTPClient http;
 
-    String url = String("https://") + _socketHostURL + "/api/devices/files/upload";
-    if (!http.begin(client, url)) {
+    bool ok;
+    if (url.startsWith("https://")) {
+        secureClient.setInsecure();
+        ok = http.begin(secureClient, url);
+    } else {
+        ok = http.begin(plainClient, url);
+    }
+    if (!ok) {
         SC_LOGE(WS_TAG, "upload: http.begin failed");
         return;
     }
