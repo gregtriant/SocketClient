@@ -272,16 +272,13 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         SC_LOGD(WS_TAG, "Update URL: %s", updateURL.c_str());
         _otaManager->startOTA(updateURL);
     } else if (strcmp(_doc["message"], "fileReady") == 0) {
-        _downloadFile(
-            _doc["url"].as<String>(),
-            _doc["filename"].as<String>(),
-            _doc["size"].as<size_t>()
-        );
+        String fileUrl = _doc["url"].as<String>();
+        if (fileUrl.isEmpty()) { SC_LOGE(WS_TAG, "fileReady: missing url"); return; }
+        _downloadFile(fileUrl, _doc["filename"].as<String>(), _doc["size"].as<size_t>());
     } else if (strcmp(_doc["message"], "requestFile") == 0) {
-        _uploadFile(
-            _doc["url"].as<String>(),
-            _doc["filename"].as<String>()
-        );
+        String fileUrl = _doc["url"].as<String>();
+        if (fileUrl.isEmpty()) { SC_LOGE(WS_TAG, "requestFile: missing url"); return; }
+        _uploadFile(fileUrl, _doc["filename"].as<String>());
     }
 }
 
@@ -576,7 +573,10 @@ void SocketClient::_uploadFile(const String &url, const String &filename) {
     http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
 
     int code = http.POST(body.data(), body.size());
-    SC_LOGD(WS_TAG, "upload: HTTP %d", code);
-
+    if (code != HTTP_CODE_OK) {
+        SC_LOGE(WS_TAG, "upload: HTTP %d", code);
+    } else {
+        SC_LOGD(WS_TAG, "upload: HTTP %d", code);
+    }
     http.end();
 }
