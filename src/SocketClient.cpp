@@ -439,8 +439,8 @@ void SocketClient::init(const SocketClientConfig_t *config) {
     ASSIGN_IF_NOT_NULLPTR(receivedCommand, config->receivedCommand);
     ASSIGN_IF_NOT_NULLPTR(entityChanged, config->entityChanged);
     ASSIGN_IF_NOT_NULLPTR(connected, config->connected);
-    ASSIGN_IF_NOT_NULLPTR(_onFileReceived, config->onFileReceived);
-    ASSIGN_IF_NOT_NULLPTR(_getFile,        config->getFile);
+    ASSIGN_IF_NOT_NULLPTR(_fileReceived,  config->fileReceived);
+    ASSIGN_IF_NOT_NULLPTR(_fileRequested, config->fileRequested);
 
     _version = config->version;
     _port = config->port;
@@ -504,71 +504,49 @@ void SocketClient::_downloadFile(const String &transferId, const String &filenam
     }
 
     size_t clampedSize = (size < 4096) ? size : 4096;
-    uint8_t *buf = (uint8_t *)malloc(clampedSize);
-    if (!buf) {
-        SC_LOGE(WS_TAG, "download: OOM");
-        http.end();
-        return;
-    }
-
-    size_t actual = http.getStream().readBytes(buf, clampedSize);
+    std::vector<uint8_t> buf(clampedSize);
+    size_t actual = http.getStream().readBytes(buf.data(), clampedSize);
+    buf.resize(actual);
     http.end();
 
-    SC_LOGD(WS_TAG, "download: '%s' %u/%u bytes", filename.c_str(), actual, clampedSize);
-    Serial.printf("[FileTransfer] received '%s' (%u bytes)\n", filename.c_str(), actual);
-    Serial.print("[FileTransfer] first bytes: ");
-    size_t preview = (actual < 32) ? actual : 32;
-    for (size_t i = 0; i < preview; i++) {
-        Serial.printf("%02X ", buf[i]);
+    SC_LOGD(WS_TAG, "download: '%s' %u bytes", filename.c_str(), actual);
+    if (_fileReceived) {
+        _fileReceived(filename, buf);
     }
-    Serial.println();
-
-    if (_onFileReceived) {
-        _onFileReceived(filename, buf, actual);
-    }
-
-    free(buf);
 }
 
 void SocketClient::_uploadFile(const String &filename) {
     const String boundary = "ESP32Boundary";
     String fname = filename.isEmpty() ? "upload.bin" : filename;
 
-    // Get file content
-    uint8_t *fileBuf = (uint8_t *)malloc(4096);
-    if (!fileBuf) {
-        SC_LOGE(WS_TAG, "upload: OOM (fileBuf)");
+    std::vector<uint8_t> fileBuf;
+    if (_fileRequested) {
+        _fileRequested(fname, fileBuf);
+    } else {
+        const char *p = "Hello from device!";
+        fileBuf.assign(p, p + strlen(p));
+    }
+
+    if (fileBuf.empty()) {
+        SC_LOGE(WS_TAG, "upload: empty buffer");
+        return;
+    }
+    if (fileBuf.size() > 4096) {
+        SC_LOGE(WS_TAG, "upload: file too large (%u bytes)", fileBuf.size());
         return;
     }
 
-    size_t fileSize = 0;
-    if (_getFile) {
-        fileSize = _getFile(fname, fileBuf, 4096);
-    } else {
-        const char *testPayload = "Hello from device!";
-        fileSize = strlen(testPayload);
-        memcpy(fileBuf, testPayload, fileSize);
-    }
-
-    // Build multipart body
     String header = "--" + boundary + "\r\n"
                     "Content-Disposition: form-data; name=\"file\"; filename=\"" + fname + "\"\r\n"
                     "Content-Type: application/octet-stream\r\n"
                     "\r\n";
     String footer = "\r\n--" + boundary + "--\r\n";
 
-    size_t totalLen = header.length() + fileSize + footer.length();
-    uint8_t *body = (uint8_t *)malloc(totalLen);
-    if (!body) {
-        SC_LOGE(WS_TAG, "upload: OOM (body)");
-        free(fileBuf);
-        return;
-    }
-
-    memcpy(body,                                   header.c_str(),  header.length());
-    memcpy(body + header.length(),                 fileBuf,         fileSize);
-    memcpy(body + header.length() + fileSize,      footer.c_str(),  footer.length());
-    free(fileBuf);
+    std::vector<uint8_t> body;
+    body.reserve(header.length() + fileBuf.size() + footer.length());
+    body.insert(body.end(), header.c_str(), header.c_str() + header.length());
+    body.insert(body.end(), fileBuf.begin(), fileBuf.end());
+    body.insert(body.end(), footer.c_str(), footer.c_str() + footer.length());
 
     WiFiClientSecure client;
     client.setInsecure();
@@ -577,16 +555,13 @@ void SocketClient::_uploadFile(const String &filename) {
     String url = String("https://") + _socketHostURL + "/api/devices/files/upload";
     if (!http.begin(client, url)) {
         SC_LOGE(WS_TAG, "upload: http.begin failed");
-        free(body);
         return;
     }
     http.addHeader("x-mac-address", WiFi.macAddress());
     http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
 
-    int code = http.POST(body, totalLen);
+    int code = http.POST(body.data(), body.size());
     SC_LOGD(WS_TAG, "upload: HTTP %d", code);
-    Serial.printf("[FileTransfer] upload response: %d\n", code);
 
-    free(body);
     http.end();
 }
