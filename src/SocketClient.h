@@ -79,8 +79,8 @@ class SocketClient {
 
     void gotMessageSocket(uint8_t *payload);
     void _init();
-    void _downloadFile(const String &transferId, const String &filename, size_t size);
-    void _uploadFile(const String &filename);
+    void _downloadFile(const String &url, const String &filename, size_t size);
+    void _uploadFile(const String &url, const String &filename);
     // static bool watchdog(void *v);
     static unsigned long last_dog;
     static unsigned long last_png;
