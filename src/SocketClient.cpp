@@ -250,12 +250,13 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         }
 
         // Read debug config sent by the server on connect.
+        bool diagEnabled = false;
         if (_doc["debug"].is<JsonObject>()) {
             JsonObject debug = _doc["debug"].as<JsonObject>();
             _applyDebugConfig(debug);
-            bool diagEnabled = debug["diagnostics"]["enabled"] | false;
-            _diagnostics->onConnected(diagEnabled);
+            diagEnabled = debug["diagnostics"]["enabled"] | false;
         }
+        _diagnostics->onConnected(diagEnabled);
 
         if (!_doc["data"].isNull()) {
             // check if _doc["data"] is a string
@@ -271,12 +272,13 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
             }
         }
     } else if (strcmp(_doc["message"], "debugConfig") == 0) {
+        bool diagEnabled = false;
         if (_doc["debug"].is<JsonObject>()) {
             JsonObject debug = _doc["debug"].as<JsonObject>();
             _applyDebugConfig(debug);
-            bool diagEnabled = debug["diagnostics"]["enabled"] | false;
-            _diagnostics->onDebugConfig(diagEnabled);
+            diagEnabled = debug["diagnostics"]["enabled"] | false;
         }
+        _diagnostics->onDebugConfig(diagEnabled);
     } else if (strcmp(_doc["message"], "command") == 0) {
 		receivedCommand(_doc);
     } else if (strcmp(_doc["message"], "askStatus") == 0) {
