@@ -86,6 +86,7 @@ SocketClient *globalSC = nullptr;
 SocketClient::SocketClient() :
     _webSocket(nullptr),
     _nvsManager(nullptr),
+    _diagnostics(nullptr),
     _wifiManager(nullptr),
     _webserverManager(nullptr),
     _otaManager(nullptr),
@@ -113,6 +114,8 @@ SocketClient::~SocketClient() {
     }
     delete _webSocket;
     _webSocket = nullptr;
+    delete _diagnostics;
+    _diagnostics = nullptr;
     delete _wifiManager;
     _wifiManager = nullptr;
     delete _nvsManager;
@@ -142,6 +145,18 @@ uint8_t SocketClient::_levelStringToIndex(const char *level) {
         if (strcmp(level, DEBUG_LEVEL_STRINGS[i]) == 0) return i;
     }
     return DEBUG_LEVEL_NONE;
+}
+
+void SocketClient::_applyDebugConfig(JsonObject debug) {
+    if (debug["logs"].is<JsonObject>()) {
+        JsonObject logs = debug["logs"].as<JsonObject>();
+        _debugLoggingEnabled = logs["enabled"] | false;
+        const char *lvl = logs["level"];
+        if (lvl) _debugLogLevelIndex = _levelStringToIndex(lvl);
+    }
+    SC_LOGD(WS_TAG, "Debug config: logs=%s level=%d",
+            _debugLoggingEnabled ? "on" : "off",
+            _debugLogLevelIndex);
 }
 
 void SocketClient::sendDebugLog(uint8_t level, const String &message) {
@@ -234,13 +249,13 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
             }
         }
 
-        // Read debug logging config sent by the server on connect.
-        if (!_doc["debug"].isNull()) {
-            _debugLoggingEnabled = _doc["debug"]["enabled"] | false;
-            const char *lvl = _doc["debug"]["level"];
-            if (lvl) _debugLogLevelIndex = _levelStringToIndex(lvl);
+        // Read debug config sent by the server on connect.
+        if (_doc["debug"].is<JsonObject>()) {
+            JsonObject debug = _doc["debug"].as<JsonObject>();
+            _applyDebugConfig(debug);
+            bool diagEnabled = debug["diagnostics"]["enabled"] | false;
+            _diagnostics->onConnected(diagEnabled);
         }
-        SC_LOGD(WS_TAG, "Debug logging: %s, level index: %d", _debugLoggingEnabled ? "on" : "off", _debugLogLevelIndex);
 
         if (!_doc["data"].isNull()) {
             // check if _doc["data"] is a string
@@ -255,12 +270,13 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
                 connected(_doc["data"]);
             }
         }
-    } else if (strcmp(_doc["message"], "debugLoggingConfig") == 0) {
-        _debugLoggingEnabled = _doc["enabled"] | false;
-        if (!_doc["level"].isNull()) {
-            _debugLogLevelIndex = _levelStringToIndex(_doc["level"]);
+    } else if (strcmp(_doc["message"], "debugConfig") == 0) {
+        if (_doc["debug"].is<JsonObject>()) {
+            JsonObject debug = _doc["debug"].as<JsonObject>();
+            _applyDebugConfig(debug);
+            bool diagEnabled = debug["diagnostics"]["enabled"] | false;
+            _diagnostics->onDebugConfig(diagEnabled);
         }
-        SC_LOGD(WS_TAG, "Debug logging config updated: %s, level index: %d", _debugLoggingEnabled ? "on" : "off", _debugLogLevelIndex);
     } else if (strcmp(_doc["message"], "command") == 0) {
 		receivedCommand(_doc);
     } else if (strcmp(_doc["message"], "askStatus") == 0) {
@@ -396,19 +412,27 @@ void SocketClient::stopReconnect() {
 
 void SocketClient::_init() {
     _webSocket = nullptr;
-    _nvsManager = NULL;
-    _wifiManager= NULL;
-    if (_handleWifi) {
-            _nvsManager = new NVSManager();
+    _wifiManager = nullptr;
 
+    _nvsManager = new NVSManager();
+    _diagnostics = new Diagnostics(_nvsManager, [this](const String& msg) {
+        if (_webSocket && _webSocket->isConnected()) {
+            String txt = msg;
+            _webSocket->sendTXT(txt);
+        }
+    });
+    _diagnostics->begin();
+
+    if (_handleWifi) {
         String ap_ssid = String(_deviceType) + "-" + String(_deviceApp);
         String ap_password = String(_token).substring(String(_token).length() - 10);
-        _wifiManager = new WifiManager(_nvsManager, ap_ssid, ap_password, [this]() { this->reconnect(); }, [this]() { this->stopReconnect(); });
+        _wifiManager = new WifiManager(_nvsManager, ap_ssid, ap_password,
+            [this]() { this->reconnect(); },
+            [this]() { this->stopReconnect(); });
         _wifiManager->init();
     }
 
     _otaManager = new OTAManager();
-
     reconnect();
 }
 
@@ -463,8 +487,8 @@ void SocketClient::init(const char *socketHostURL, int port, bool _isSSL) {
 void SocketClient::loop() {
     if (_wifiManager) _wifiManager->loop();
     if (_webserverManager) _webserverManager->loop();
-
     if (_webSocket) _webSocket->loop();
+    if (_diagnostics) _diagnostics->loop();
     _tc.loop();
 }
 
