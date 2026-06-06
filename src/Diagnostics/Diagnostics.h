@@ -33,6 +33,7 @@ private:
     uint32_t _resetCount = 0;
     String _resetReason;
     unsigned long _lastSent = 0;
+    bool _hasSent = false;
     static const unsigned long INTERVAL = 3600000UL;
 
     void _send();

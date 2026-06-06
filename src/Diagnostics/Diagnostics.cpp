@@ -45,7 +45,7 @@ void Diagnostics::onDebugConfig(bool enabled) {
 
 void Diagnostics::loop() {
     if (!_enabled) return;
-    if (_lastSent == 0 || millis() - _lastSent >= INTERVAL) {
+    if (!_hasSent || millis() - _lastSent >= INTERVAL) {
         _send();
     }
 }
@@ -55,7 +55,9 @@ void Diagnostics::_send() {
     doc["message"]     = "@diagnostics";
     doc["rssi"]        = WiFi.RSSI();
     doc["freeHeap"]    = (uint32_t)ESP.getFreeHeap();
+#if defined(ESP32) || defined(LIBRETUYA)
     doc["minFreeHeap"] = (uint32_t)ESP.getMinFreeHeap();
+#endif
     doc["resetReason"] = _resetReason;
     doc["resetCount"]  = _resetCount;
 
@@ -63,4 +65,5 @@ void Diagnostics::_send() {
     serializeJson(doc, output);
     _sendFn(output);
     _lastSent = millis();
+    _hasSent = true;
 }
