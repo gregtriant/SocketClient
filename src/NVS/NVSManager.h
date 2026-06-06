@@ -1,8 +1,5 @@
 #pragma once
 #include <Arduino.h>
-#include <ArduinoJson.h>
-#include <WiFiClientSecure.h>
-#include <WebSocketsClient.h>
 #include "SocketClientDefs.h"
 
 #if defined(ESP32) || defined(LIBRETUYA)
@@ -25,11 +22,16 @@
 class NVSManager
 {
 protected:
-    Preferences _wifi_preferences;
+    Preferences _prefs;
 public:
     NVSManager();
     ~NVSManager();
 
+    uint32_t getUInt(const char* ns, const char* key, uint32_t defaultValue = 0);
+    void     putUInt(const char* ns, const char* key, uint32_t value);
+    String   getString(const char* ns, const char* key, const String& defaultValue = "");
+    void     putString(const char* ns, const char* key, const String& value);
+
     void saveWifiCredentials(String ssid, String password);
-    void getWifiCredentials(String &ssid, String &password);
+    void getWifiCredentials(String& ssid, String& password);
 };

@@ -27,6 +27,7 @@
 //- #include "WebserverManager/WebserverManager.h"
 //- #include "WifiManager/WifiManager.h"
 #include "TimeClient/TimeClient.h"
+#include "Diagnostics/Diagnostics.h"
 
 class WifiManager;
 class WebserverManager;
@@ -39,6 +40,7 @@ class SocketClient {
    protected:
     WebSocketsClient *_webSocket;
     NVSManager *_nvsManager;
+    Diagnostics *_diagnostics;
     WifiManager *_wifiManager;
     WebserverManager *_webserverManager;
     OTAManager *_otaManager;
@@ -77,6 +79,7 @@ class SocketClient {
     uint8_t _debugLogLevelIndex = DEBUG_LEVEL_INFO;  // send error/warning/info by default
 
     static uint8_t _levelStringToIndex(const char *level);
+    void _applyDebugConfig(JsonObject debug);
 
     void gotMessageSocket(uint8_t *payload);
     void _init();
