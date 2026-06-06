@@ -19,7 +19,7 @@ void NVSManager::putUInt(const char* ns, const char* key, uint32_t value) {
 
 String NVSManager::getString(const char* ns, const char* key, const String& defaultValue) {
     _prefs.begin(ns, RO_MODE);
-    String val = _prefs.getString(key, defaultValue);
+    String val = _prefs.getString(key, defaultValue.c_str());
     _prefs.end();
     return val;
 }

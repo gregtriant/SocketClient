@@ -1,7 +1,5 @@
 #pragma once
 #include <Arduino.h>
-#include <WiFiClientSecure.h>
-#include <WebSocketsClient.h>
 #include "SocketClientDefs.h"
 
 #if defined(ESP32) || defined(LIBRETUYA)
