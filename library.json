@@ -21,6 +21,10 @@
     "frameworks": "arduino",
     "keywords": "wifi, http, web, server, client, websocket",
     "license": "MIT",
+    "build": {
+        "unflags": "-std=gnu++11",
+        "flags": "-std=gnu++17"
+    },
     "platforms": [
         "espressif8266",
         "espressif32"

@@ -25,6 +25,17 @@ lib_deps =
 
 See [`library.json`](library.json) for all transitive dependencies.
 
+### C++ standard requirement
+
+`SocketClientConfig_t` uses default member initializers (so `handleWifi`, `fileReceived`, and `fileRequested` are optional). Under C++11 such a struct is no longer an aggregate, which breaks the brace/designated initialization shown in the Quick Start. **Compile your project with C++14 or newer.** Many cores (e.g. arduino-esp32 2.x) still default to `-std=gnu++11`, so add this to your `platformio.ini`:
+
+```ini
+build_unflags = -std=gnu++11
+build_flags   = -std=gnu++17
+```
+
+> The library already builds its own sources with `-std=gnu++17` via `library.json`, but PlatformIO applies library build flags only to the library's own files — your project's `src/` still needs the flags above. (Alternatively, skip the config struct and use the [setter API](#setters-alternative-to-config-struct).)
+
 ## Quick Start
 
 ```cpp

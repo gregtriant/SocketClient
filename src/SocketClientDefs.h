@@ -73,7 +73,7 @@ typedef std::function<void(const String &filename, std::vector<uint8_t> &buf)>  
  * This structure holds various settings for the SocketClient, including device
  * settings, server settings, and function pointers for handling events.
  */
-typedef struct {
+struct SocketClientConfig_t {
     /* device settings */
     const char *name;     // name of the app
     float version;        // version of the app
@@ -81,20 +81,20 @@ typedef struct {
     const int ledPin;     // pin for the LED (optional, can be -1 if not used)
 
     /* server settings */
-    const char *host;       // host of the socket server
-    const int port;         // port of the socket server
-    const bool isSSL;       // is the socket server using SSL
-    const char *token;      // token for authentication
-    bool handleWifi    = false;  // enable WifiManager + NVSManager
+    const char *host;            // host of the socket server
+    const int port;              // port of the socket server
+    const bool isSSL;            // is the socket server using SSL
+    const char *token;           // token for authentication
+    bool handleWifi = false;     // enable WifiManager + NVSManager
 
     /* functions */
     SendStatusFunction sendStatus;
     ReceivedCommandFunction receivedCommand;
     EntityChangedFunction entityChanged;
     ConnectedFunction connected;
-    FileReceivedFunction  fileReceived  = nullptr; // called with downloaded file bytes; nullptr = no-op
+    FileReceivedFunction fileReceived = nullptr;   // called with downloaded file bytes; nullptr = no-op
     FileRequestedFunction fileRequested = nullptr; // fill buf with upload data; nullptr = sends built-in test payload
-} SocketClientConfig_t;
+};
 
 typedef struct {
     const char *app;
