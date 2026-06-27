@@ -108,7 +108,7 @@ void WebserverManager::_setupWebServer()
             String json = "[";
             for (int i = 0; i < n; ++i) {
                 if (i > 0) json += ",";
-                json += "{\"ssid\":\"" + WiFi.SSID(i) + "\",\"rssi\":" + String(WiFi.RSSI(i)) + "}";
+                json += "{\"ssid\":\"" + WiFi.SSID(i) + "\",\"rssi\":" + String(WiFi.RSSI(i)) + ",\"channel\":" + String(WiFi.channel(i)) + "}";
             }
             json += "]";
             WiFi.scanDelete();
