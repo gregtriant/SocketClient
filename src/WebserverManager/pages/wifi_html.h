@@ -23,7 +23,7 @@ const char WIFI_HTML[] PROGMEM = R"rawliteral(
 </div>
 <script>
   fetch('/sc/info').then(r=>r.json()).then(d=>{
-    if(d.ssid) document.getElementById('statusMsg').textContent='Connected to: '+d.ssid+' ('+d.rssi+' dBm)';
+    if(d.ssid) document.getElementById('statusMsg').textContent='Connected to: '+d.ssid+' ('+d.rssi+' dBm,'+d.channel+')';
   }).catch(()=>{});
   function togglePassword(){var p=document.getElementById('password');p.type=p.type==='password'?'text':'password';}
   function doConnect(){
@@ -67,7 +67,7 @@ const char WIFI_HTML[] PROGMEM = R"rawliteral(
       var list=document.getElementById('networkList');
       data.forEach(net=>{
         var li=document.createElement('li');
-        li.textContent=net.ssid+' ('+net.rssi+' dBm)';
+        li.textContent=net.ssid+' ('+net.rssi+'dBm, '+net.channel+')';
         li.onclick=function(){document.getElementById('ssid').value=net.ssid;};
         list.appendChild(li);
       });
