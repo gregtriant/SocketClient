@@ -49,14 +49,6 @@ bool SocketClient::watchdog(void *vv) {
         return true;
     }
 
-    if (wsc.isConnected()) {
-        if (wsc.sendPing()) {
-            SC_LOGD(WS_TAG, "*");
-        } else {
-            SC_LOGD(WS_TAG, "@");
-        }
-    }
-
     if (last_dog > 0 && millis() - last_dog > watchdog_time) {
         SC_LOGD(WS_TAG, "* watchdog time *\n");
         wsc.disconnect();
