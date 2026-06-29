@@ -93,7 +93,7 @@ class SocketClient {
     static unsigned long last_reconnect;
     static unsigned long reconnect_time;                      //- 30 sec
     static const unsigned long max_reconnect_time = 600000L;  //- 10 min
-    static const unsigned long watchdog_time = (5 * tick_time / 2);
+    static const unsigned long watchdog_time = (5 * tick_time);      //- 30 s; must be > heartbeat interval (15 s)
 
 public:
     SocketClient();

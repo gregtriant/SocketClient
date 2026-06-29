@@ -54,12 +54,6 @@ bool SocketClient::watchdog(void *vv) {
         wsc.disconnect();
         return true;
     }
-    if (last_png > 0 && millis() - last_png > watchdog_time) {
-        SC_LOGD(WS_TAG, "* png watchdog time *\n");
-        wsc.disconnect();
-        return true;
-    }
-
     // Feed the hardware watchdog to prevent it from rebooting the device
 #ifdef ESP32
     esp_task_wdt_reset();
