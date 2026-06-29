@@ -13,50 +13,68 @@
 #define UPDATE_SIZE_UNKNOWN 0xFFFFFFFF
 #endif
 
+#ifdef ESP32
+#include <esp_task_wdt.h>
+#endif
+
 unsigned long SocketClient::last_dog = 0;
 unsigned long SocketClient::last_png = 0;
 unsigned long SocketClient::last_reconnect = 0;
 unsigned long SocketClient::reconnect_time = 30000;  //- 30 sec
 
-// bool SocketClient::watchdog(void *vv) {
-//     SocketClient *sc = (SocketClient *)vv;
-//     if (!sc)
-//         return true;
-//     WebSocketsClient &wsc = sc->webSocket;
-//     if (!wsc.isConnected() && (last_reconnect == 0 || (millis() - last_reconnect) > reconnect_time)) {
-//         unsigned int x = millis() / (60000);
-//         SC_LOGD(WS_TAG, "%u", x);
-//         SC_LOGD(WS_TAG, "* reconnect *\n");
-//         last_reconnect = millis();
-//         reconnect_time += 60000;
-//         if (reconnect_time > max_reconnect_time)
-//             reconnect_time = max_reconnect_time;
-//         sc->reconnect();
-//         return true;
-//     }
+bool SocketClient::watchdog(void *vv) {
+    SocketClient *sc = (SocketClient *)vv;
+    if (!sc || !sc->_webSocket)
+        return true;
+    WebSocketsClient &wsc = *sc->_webSocket;
 
-//     if (wsc.isConnected()) {
-//         if (wsc.sendPing()) {
-//             SC_LOGD(WS_TAG, "*");
-//             // last_dog = millis();
-//         } else {
-//             // wsc.disconnect();
-//             SC_LOGD(WS_TAG, "@");
-//         }
-//     }
+    if (!wsc.isConnected() && (last_reconnect == 0 || (millis() - last_reconnect) > reconnect_time)) {
+        // Check if device is idle; default to true if callback is not set (safe default)
+        bool device_idle = (!sc->_isIdle) || sc->_isIdle();
 
-//     if (last_dog > 0 && millis() - last_dog > watchdog_time) {
-//         SC_LOGD(WS_TAG, "* watchdog time *\n");
-//         wsc.disconnect();
-//         return true;
-//     }
-//     if (last_png > 0 && millis() - last_png > watchdog_time) {
-//         SC_LOGD(WS_TAG, "* png watchdog time *\n");
-//         wsc.disconnect();
-//         return true;
-//     }
-//     return true;
-// }
+        if (!device_idle) {
+            // Program is active; defer reconnect until next check
+            return true;
+        }
+
+        // Device is idle; safe to reconnect
+        unsigned int x = millis() / (60000);
+        SC_LOGD(WS_TAG, "%u", x);
+        SC_LOGD(WS_TAG, "* reconnect *\n");
+        last_reconnect = millis();
+        reconnect_time += 60000;
+        if (reconnect_time > max_reconnect_time)
+            reconnect_time = max_reconnect_time;
+        sc->reconnect();
+        return true;
+    }
+
+    if (wsc.isConnected()) {
+        if (wsc.sendPing()) {
+            SC_LOGD(WS_TAG, "*");
+        } else {
+            SC_LOGD(WS_TAG, "@");
+        }
+    }
+
+    if (last_dog > 0 && millis() - last_dog > watchdog_time) {
+        SC_LOGD(WS_TAG, "* watchdog time *\n");
+        wsc.disconnect();
+        return true;
+    }
+    if (last_png > 0 && millis() - last_png > watchdog_time) {
+        SC_LOGD(WS_TAG, "* png watchdog time *\n");
+        wsc.disconnect();
+        return true;
+    }
+
+    // Feed the hardware watchdog to prevent it from rebooting the device
+#ifdef ESP32
+    esp_task_wdt_reset();
+#endif
+
+    return true;
+}
 
 // Initialize default functions for the user
 void SocketClient_sendStatus(JsonDoc status) {
@@ -416,6 +434,13 @@ void SocketClient::_init() {
     _webSocket = nullptr;
     _wifiManager = nullptr;
 
+    // Initialize hardware watchdog (ESP32 only); safe to call multiple times — reinit just updates timeout
+    // 900s (15 min) timeout; if sc.loop() stops running, hardware WDT reboots after 15 min as ultimate safety net
+#ifdef ESP32
+    esp_task_wdt_init(600, true);  // 600s (10 min); reinit is safe, just updates config
+    esp_task_wdt_add(NULL);        // subscribe current task; returns ESP_ERR_INVALID_ARG if already subscribed (harmless)
+#endif
+
     _nvsManager = new NVSManager();
     _diagnostics = new Diagnostics(_nvsManager, [this](const String& msg) {
         if (_webSocket && _webSocket->isConnected()) {
@@ -465,6 +490,7 @@ void SocketClient::init(const SocketClientConfig_t *config) {
     ASSIGN_IF_NOT_NULLPTR(receivedCommand, config->receivedCommand);
     ASSIGN_IF_NOT_NULLPTR(entityChanged, config->entityChanged);
     ASSIGN_IF_NOT_NULLPTR(connected, config->connected);
+    ASSIGN_IF_NOT_NULLPTR(_isIdle, config->isIdle);
     ASSIGN_IF_NOT_NULLPTR(_fileReceived,  config->fileReceived);
     ASSIGN_IF_NOT_NULLPTR(_fileRequested, config->fileRequested);
 
@@ -492,6 +518,7 @@ void SocketClient::loop() {
     if (_webSocket) _webSocket->loop();
     if (_diagnostics) _diagnostics->loop();
     _tc.loop();
+    watchdog(this);
 }
 
 String SocketClient::getCurrentStatus() {

@@ -64,6 +64,7 @@ typedef std::function<void(JsonDoc doc)> SendStatusFunction;
 typedef std::function<void(JsonDoc doc)> ReceivedCommandFunction;
 typedef std::function<void(JsonDoc doc)> EntityChangedFunction;
 typedef std::function<void(JsonDoc doc)> ConnectedFunction;
+typedef std::function<bool(void)> IsIdleFunction;
 typedef std::function<void(const String &filename, const std::vector<uint8_t> &buf)> FileReceivedFunction;
 typedef std::function<void(const String &filename, std::vector<uint8_t> &buf)>       FileRequestedFunction;
 
@@ -92,6 +93,7 @@ struct SocketClientConfig_t {
     ReceivedCommandFunction receivedCommand;
     EntityChangedFunction entityChanged;
     ConnectedFunction connected;
+    IsIdleFunction isIdle = nullptr;               // called to check if device is idle; nullptr = always idle (safe to reconnect)
     FileReceivedFunction fileReceived = nullptr;   // called with downloaded file bytes; nullptr = no-op
     FileRequestedFunction fileRequested = nullptr; // fill buf with upload data; nullptr = sends built-in test payload
 };

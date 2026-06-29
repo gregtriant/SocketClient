@@ -72,6 +72,7 @@ class SocketClient {
     ReceivedCommandFunction receivedCommand;
     EntityChangedFunction entityChanged;
     ConnectedFunction connected;
+    IsIdleFunction _isIdle;
     FileReceivedFunction  _fileReceived;
     FileRequestedFunction _fileRequested;
 
@@ -85,7 +86,7 @@ class SocketClient {
     void _init();
     void _downloadFile(const String &url, const String &filename, size_t size);
     void _uploadFile(const String &url, const String &filename);
-    // static bool watchdog(void *v);
+    static bool watchdog(void *vv);
     static unsigned long last_dog;
     static unsigned long last_png;
     static const unsigned long tick_time = 6000;
