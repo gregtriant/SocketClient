@@ -61,8 +61,9 @@ SocketClientConfig_t config = {
     .fileReceived  = [](const String &filename, const std::vector<uint8_t> &buf) {
         // called when server pushes a file to the device
     },
-    .fileRequested = [](const String &filename, std::vector<uint8_t> &buf) {
+    .fileRequested = [](String &filename, std::vector<uint8_t> &buf) {
         // called when server requests a file from the device; fill buf
+        // (filename is mutable — the callback may rename the file being uploaded)
         buf.assign(filename.c_str(), filename.c_str() + filename.length());
     },
 };
@@ -220,17 +221,22 @@ When the server sends a `fileReady` message, the library performs an HTTPS GET, 
 
 ### Device → Server (upload)
 
-When the server sends a `requestFile` message, the library calls `fileRequested` with an empty vector. Fill it with whatever bytes you want to upload:
+When the server sends a `requestFile` message, the library calls `fileRequested` with an empty vector. Fill it with whatever bytes you want to upload. `filename` is passed by reference, so the callback may also rename it:
 
 ```cpp
-.fileRequested = [](const String &filename, std::vector<uint8_t> &buf) {
+.fileRequested = [](String &filename, std::vector<uint8_t> &buf) {
     // fill buf — the library will POST it to the server as multipart/form-data
+    // optionally rename the file being uploaded:
+    filename = "renamed.bin";
     String payload = "Hello from device!";
     buf.assign(payload.c_str(), payload.c_str() + payload.length());
 },
 ```
 
 If `fileRequested` is `nullptr`, the library sends the string `"Hello from device!"` as a default test payload.
+
+The final filename (after the callback runs) is sent to the server via the multipart
+`Content-Disposition: filename="..."` header.
 
 **Limits:** Files larger than 4096 bytes are rejected with an error log. Auth is via `x-mac-address` header (device must be registered on the server).
 
