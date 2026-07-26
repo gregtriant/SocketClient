@@ -582,9 +582,16 @@ void SocketClient::_uploadFile(const String &url, const String &filename) {
         return;
     }
 
+    String ftype = "application/octet-stream";
+    int ipos = fname.indexOf('|');
+    if (ipos >= 0) {
+        ftype = fname.substring(ipos + 1);
+        fname = fname.substring(0, ipos);
+    }
+
     String header = "--" + boundary + "\r\n"
                     "Content-Disposition: form-data; name=\"file\"; filename=\"" + fname + "\"\r\n"
-                    "Content-Type: application/octet-stream\r\n"
+                    "Content-Type: " + ftype + "\r\n"
                     "\r\n";
     String footer = "\r\n--" + boundary + "--\r\n";
 
