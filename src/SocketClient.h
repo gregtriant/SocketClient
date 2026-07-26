@@ -72,6 +72,7 @@ class SocketClient {
     ReceivedCommandFunction receivedCommand;
     EntityChangedFunction entityChanged;
     ConnectedFunction connected;
+    IsIdleFunction _isIdle;
     FileReceivedFunction  _fileReceived;
     FileRequestedFunction _fileRequested;
 
@@ -85,14 +86,14 @@ class SocketClient {
     void _init();
     void _downloadFile(const String &url, const String &filename, size_t size);
     void _uploadFile(const String &url, const String &filename);
-    // static bool watchdog(void *v);
+    void watchdog();
     static unsigned long last_dog;
     static unsigned long last_png;
     static const unsigned long tick_time = 6000;
     static unsigned long last_reconnect;
     static unsigned long reconnect_time;                      //- 30 sec
     static const unsigned long max_reconnect_time = 600000L;  //- 10 min
-    static const unsigned long watchdog_time = (5 * tick_time / 2);
+    static const unsigned long watchdog_time = (5 * tick_time);      //- 30 s; must be > heartbeat interval (15 s)
 
 public:
     SocketClient();
