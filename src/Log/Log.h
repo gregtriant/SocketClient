@@ -29,5 +29,6 @@ void _scRemoteLog(uint8_t level, const char *tag, const char *fmt, ...);
 #define NVS_TAG    " NVS"
 #define APP_TAG    " APP"
 #define MQTT_TAG   "MQTT"
+#define EVENT_TAG  "EVNT"
 
 #endif // LOG_H

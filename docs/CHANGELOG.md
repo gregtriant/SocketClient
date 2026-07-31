@@ -1,5 +1,17 @@
 # Changelog for Socket Client library
 
+## [1.5.0] - 2026-07-31
+
+### Added
+
+- `EventHandler<CategoryT>` (`src/EventHandler/EventHandler.h`) — a standalone, header-only publish/subscribe event bus for inter-task communication
+  - Templated on an app-supplied category type (e.g. `enum class EventCategory : uint8_t { Nfc, Button };`), so each consuming app injects its own categories/event ids without touching the library
+  - Subscribe to every event in a category, or to one specific event id within a category; re-subscribing the same key updates the callback in place instead of duplicating
+  - Dedicated FreeRTOS task dispatches all callbacks serially, regardless of which task published the event
+  - `publish()` transfers ownership of a heap-allocated (`new uint8_t[]`) payload to `EventHandler`, which frees it right after every matching callback returns
+  - ESP32 / LibreTuya only (relies on FreeRTOS task/queue/semaphore APIs not available on ESP8266, same constraint as `HAMqtt`)
+  - Not yet wired into `SocketClient`'s own callbacks (`connected`, `receivedCommand`, etc.) — those are unchanged; this is a standalone module for now
+
 ## [1.3.0] - 2026-06-03
 
 ### Added

@@ -56,6 +56,9 @@ A single `JsonDocument _doc` member is reused across all message construction an
 ### TimeClient
 `_tc` (a `TimeClient` member) syncs time via NTP after the server sends a `connected` message with timezone. Public API: `hasTime()`, `getTime(hh, mm, ss)`, `getDate(yy, mm, dd)`. Time is only valid after a successful `connected` message is received.
 
+### EventHandler (standalone pub/sub module)
+`src/EventHandler/EventHandler.h` is a header-only, templated publish/subscribe event bus (`EventHandler<CategoryT>`) that is **independent of `SocketClient`** — any ESP32/LibreTuya project can include it for inter-task pub/sub without pulling in WebSocket/WiFi functionality. `CategoryT` is injected by the consuming app as a template parameter (typically its own `enum class`); event ids within a category are a plain `uint16_t`. `init()` starts a dedicated FreeRTOS task that runs all matching callbacks serially, regardless of which task called `publish()`. `publish()` transfers ownership of a `new uint8_t[]`-allocated payload to `EventHandler`, which frees it with `delete[]` right after dispatch (or immediately, if the queue was full). Subscriptions live in a mutex-protected linked list with no `unsubscribe()`; re-subscribing the same (category, eventId) key updates the callback in place. **ESP32/LibreTuya only** — relies on FreeRTOS task/queue/semaphore APIs not available on ESP8266, the same constraint already documented below for `HAMqtt`. Not yet wired into `SocketClient`'s own callbacks (`connected`, `receivedCommand`, etc.) — that integration is a deliberate follow-up, not part of this module.
+
 ### Optional HA MQTT Module (`SC_ENABLE_HA_MQTT`)
 Enabled by adding `-D SC_ENABLE_HA_MQTT` to `build_flags`. When enabled:
 - `HAMqttConfig_t` must be populated and passed to `HAMqtt` directly (no field on `SocketClientConfig_t` yet)
