@@ -106,8 +106,8 @@ public:
     void sendDebugLog(uint8_t level, const String &message);
     void sendNotification(const String &message);
     void sendNotification(const String &message, const JsonDoc &data);
-    bool isConnected() { return _webSocket->isConnected(); }
-    void disconnect() { _webSocket->disconnect(); }
+    bool isConnected() { return _webSocket && _webSocket->isConnected(); }
+    void disconnect() { if (_webSocket) _webSocket->disconnect(); }
 
     void init(const SocketClientConfig_t *config);
     void init(const char *socketHostURL, int port, bool _isSSL);
