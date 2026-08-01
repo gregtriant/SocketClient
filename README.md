@@ -166,7 +166,7 @@ SC_LOGV(APP_TAG, "raw bytes: %02x", b);       // level 4 — verbose
 SC_LOGV2(".");                                 // raw Serial.printf, no remote
 ```
 
-**Predefined tags:** `APP_TAG`, `WIFI_TAG`, `WS_TAG`, `MQTT_TAG`, `OTA_TAG`, `NVS_TAG`, `SERVER_TAG`
+**Predefined tags:** `APP_TAG`, `WIFI_TAG`, `WS_TAG`, `MQTT_TAG`, `OTA_TAG`, `NVS_TAG`, `SERVER_TAG`, `EVENT_TAG`
 
 **Debug level constants:** `DEBUG_LEVEL_ERROR(0)` → `DEBUG_LEVEL_VERBOSE(4)`, `DEBUG_LEVEL_NONE(255)`
 
@@ -303,6 +303,52 @@ mqtt.publishEvent("button1", "pressed");
 ```
 
 State is published to `homeassistant/device/{deviceName}/{entityId}/state` as `{action, timestamp}`. Discovery configs are sent to `homeassistant/sensor/{deviceId}_{entityId}/config` on first connect.
+
+## Event Bus (Pub/Sub)
+
+`EventHandler<CategoryT>` (`src/EventHandler/EventHandler.h`) is a standalone, header-only publish/subscribe event bus for inter-task communication. It is independent of `SocketClient` — include it in any ESP32/LibreTuya project that wants a pub/sub mechanism between tasks (e.g. one task publishing sensor events, another reacting to them).
+
+Each consuming app injects its own event categories by instantiating the template with its own type — nothing is hardcoded in the library:
+
+```cpp
+#include <EventHandler/EventHandler.h>
+
+enum class EventCategory : uint8_t { Nfc, Button };
+enum class NfcEventId : uint16_t { CardDetected };
+
+EventHandler<EventCategory> eventHandler;
+
+void setup() {
+    eventHandler.init();  // starts the dispatch task; call once
+
+    // Subscribe to one specific event id within a category.
+    eventHandler.subscribe(EventCategory::Nfc, (uint16_t)NfcEventId::CardDetected,
+        [](EventCategory category, uint16_t eventId, const void *data, size_t dataLen) {
+            uint32_t cardId = *static_cast<const uint32_t *>(data);
+            Serial.println(cardId);
+        });
+
+    // Or subscribe to every event published under a category.
+    eventHandler.subscribe(EventCategory::Nfc,
+        [](EventCategory category, uint16_t eventId, const void *data, size_t dataLen) {
+            // fires for any Nfc event, regardless of eventId
+        });
+}
+
+void nfcTask(void *) {
+    uint32_t *cardId = new uint32_t(0x1A2B3C4D);
+    // publish() transfers ownership of cardId to EventHandler; do not free it yourself.
+    eventHandler.publish(EventCategory::Nfc, (uint16_t)NfcEventId::CardDetected, cardId, sizeof(uint32_t));
+}
+```
+
+Key points:
+- **Category injection**: `CategoryT` is a template parameter, typically your own `enum class`. Event ids within a category are a plain `uint16_t` — define your own scoped id enum per category and cast at call sites.
+- **One dispatch task**: `init()` starts a dedicated FreeRTOS task that owns all callback execution, so callbacks always run serialized on that task regardless of which task called `publish()`.
+- **Update-in-place subscriptions**: calling `subscribe()` again with the same category (+ eventId) replaces the existing callback rather than adding a duplicate. There is no `unsubscribe()`.
+- **Ownership**: `publish()`'s `data` must be heap-allocated with `new uint8_t[dataLen]` (or `nullptr`). `EventHandler` takes ownership immediately and frees it with `delete[]` right after every matching callback returns (or immediately, if the internal queue is full and the event is dropped).
+- **Platform**: ESP32 / LibreTuya only — it relies on FreeRTOS task/queue/semaphore APIs not available on ESP8266 (same constraint as `HAMqtt`).
+- **Not yet integrated with `SocketClient`** — `connected`, `receivedCommand`, `entityChanged`, etc. remain separate `std::function` callbacks, unrelated to this bus, for now.
 
 ## Platform Support
 
