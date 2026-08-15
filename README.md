@@ -264,6 +264,7 @@ OTA can be triggered two ways:
 | `@log` | `sendLog()` | `{text: "..."}` |
 | `@debugLog` | `sendDebugLog()` | `{level, text, timestamp}` |
 | `notification` | `sendNotification()` | `{body: "..."}` or `{body, options: {...}}` |
+| `fileError` | Automatic — a `requestFile` the library can't fulfil | `{requestId, filename, error}`; `error` is `notFound` (the `fileRequested` callback left `buf` empty), `tooLarge` (over 4096 bytes), or `uploadFailed` (couldn't connect, or the server answered non-200) |
 
 ### Server → Device
 
@@ -276,7 +277,6 @@ OTA can be triggered two ways:
 | `update` | *(internal)* | Triggers OTA from `url` field |
 | `fileReady` | `fileReceived(filename, buf)` | Library downloads file and calls callback with bytes |
 | `requestFile` | `fileRequested(filename, buf)` | Library calls callback, then POSTs filled buffer to server |
-| `fileError` | *(internal)* | Sent by the library when it cannot fulfil a `requestFile` |
 | `debugLoggingConfig` | *(internal)* | Updates `{enabled, level}` at runtime |
 
 > **Note:** All callbacks share a single internal `JsonDocument`. Copy any values you need before returning from the callback.
