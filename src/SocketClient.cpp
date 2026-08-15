@@ -293,9 +293,10 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         if (fileUrl.isEmpty()) { SC_LOGE(WS_TAG, "fileReady: missing url"); return; }
         _downloadFile(fileUrl, _doc["filename"].as<String>(), _doc["size"].as<size_t>());
     } else if (strcmp(_doc["message"], "requestFile") == 0) {
-        String fileUrl = _doc["url"].as<String>();
+        String fileUrl   = _doc["url"].as<String>();
+        String requestId = _doc["requestId"].as<String>();
         if (fileUrl.isEmpty()) { SC_LOGE(WS_TAG, "requestFile: missing url"); return; }
-        _uploadFile(fileUrl, _doc["filename"].as<String>());
+        _uploadFile(fileUrl, _doc["filename"].as<String>(), requestId);
     }
 }
 
@@ -567,7 +568,24 @@ void SocketClient::_downloadFile(const String &url, const String &filename, size
     }
 }
 
-void SocketClient::_uploadFile(const String &url, const String &filename) {
+void SocketClient::_sendFileError(const String &requestId, const String &filename, const char *error) {
+    if (!_webSocket || !_webSocket->isConnected()) return;
+
+    // Local doc, same reason as sendDebugLog: _uploadFile runs inside
+    // gotMessageSocket while the shared _doc still holds the inbound message.
+    JsonDocument errDoc;
+    errDoc["message"]   = "fileError";
+    errDoc["requestId"] = requestId;
+    errDoc["filename"]  = filename;
+    errDoc["error"]     = error;
+
+    String textToSend = "";
+    serializeJson(errDoc, textToSend);
+    SC_LOGD(WS_TAG, "Sending fileError: %s", textToSend.c_str());
+    _webSocket->sendTXT(textToSend);
+}
+
+void SocketClient::_uploadFile(const String &url, const String &filename, const String &requestId) {
     const String boundary = "ESP32Boundary";
     String fname = filename.isEmpty() ? "upload.bin" : filename;
 
@@ -581,10 +599,13 @@ void SocketClient::_uploadFile(const String &url, const String &filename) {
 
     if (fileBuf.empty()) {
         SC_LOGE(WS_TAG, "upload: empty buffer");
+        // The sketch left the buffer alone: it has no such file.
+        _sendFileError(requestId, fname, "notFound");
         return;
     }
     if (fileBuf.size() > 4096) {
         SC_LOGE(WS_TAG, "upload: file too large (%u bytes)", fileBuf.size());
+        _sendFileError(requestId, fname, "tooLarge");
         return;
     }
 
@@ -620,6 +641,7 @@ void SocketClient::_uploadFile(const String &url, const String &filename) {
     }
     if (!ok) {
         SC_LOGE(WS_TAG, "upload: http.begin failed: %s", url.c_str());
+        _sendFileError(requestId, fname, "uploadFailed");
         return;
     }
     http.addHeader("x-mac-address", WiFi.macAddress());
@@ -628,6 +650,7 @@ void SocketClient::_uploadFile(const String &url, const String &filename) {
     int code = http.POST(body.data(), body.size());
     if (code != HTTP_CODE_OK) {
         SC_LOGE(WS_TAG, "upload: HTTP %d", code);
+        _sendFileError(requestId, fname, "uploadFailed");
     } else {
         SC_LOGD(WS_TAG, "upload: HTTP %d", code);
     }
