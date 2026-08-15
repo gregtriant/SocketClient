@@ -293,8 +293,12 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         if (fileUrl.isEmpty()) { SC_LOGE(WS_TAG, "fileReady: missing url"); return; }
         _downloadFile(fileUrl, _doc["filename"].as<String>(), _doc["size"].as<size_t>());
     } else if (strcmp(_doc["message"], "requestFile") == 0) {
-        String fileUrl   = _doc["url"].as<String>();
-        String requestId = _doc["requestId"].as<String>();
+        String fileUrl = _doc["url"].as<String>();
+        // ArduinoJson serializes a null/missing variant to the literal string
+        // "null" via .as<String>() — that would be a truthy sentinel on the
+        // wire and break the browser's legacy-request check. isNull() covers
+        // both an absent key and an explicit JSON null; map both to "".
+        String requestId = _doc["requestId"].isNull() ? String("") : _doc["requestId"].as<String>();
         if (fileUrl.isEmpty()) { SC_LOGE(WS_TAG, "requestFile: missing url"); return; }
         _uploadFile(fileUrl, _doc["filename"].as<String>(), requestId);
     }
