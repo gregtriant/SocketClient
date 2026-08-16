@@ -23,7 +23,14 @@ const char WIFI_HTML[] PROGMEM = R"rawliteral(
 </div>
 <script>
   fetch('/sc/info').then(r=>r.json()).then(d=>{
-    if(d.ssid) document.getElementById('statusMsg').textContent='Connected to: '+d.ssid+' ('+d.rssi+' dBm,'+d.channel+')';
+    if(d.ssid){
+      var msg=document.getElementById('statusMsg');
+      msg.textContent='Connected to: ';
+      var b=document.createElement('b');
+      b.textContent=d.ssid;
+      msg.appendChild(b);
+      msg.appendChild(document.createTextNode(' ('+d.rssi+' dBm,'+d.channel+')'));
+    }
   }).catch(()=>{});
   function togglePassword(){var p=document.getElementById('password');p.type=p.type==='password'?'text':'password';}
   function doConnect(){

@@ -36,6 +36,7 @@ protected:
     uint64_t _connecting_time    = 0;
     uint8_t _connecting_attempts = 0;
     wl_status_t _wifi_status     = WL_IDLE_STATUS; // current wifi status
+    bool _pending_save           = false; // true while connecting with unsaved candidate credentials
 
     // for AP mode
     String _ap_ssid     = "";
@@ -57,11 +58,14 @@ public:
 
     String getIP();
     String getMacAddress();
+    bool isConnecting() { return _connecting_time != 0; }
 
-    void saveWifiCredentials(String ssid, String password) {
-        _wifi_ssid = ssid;
-        _wifi_password = password;
-        _nvsManager->saveWifiCredentials(ssid, password);
+    // Attempts to connect with new candidate credentials without touching NVS yet.
+    // They're only persisted once the connection actually succeeds (see _wifiConnected());
+    // on failure the currently saved credentials are restored, untouched.
+    void tryNewCredentials(String ssid, String password) {
+        _pending_save = true;
+        _connectingToWifi(ssid, password);
     }
 
     // void setInternetRestoredCallback(std::function<void()> cb) { _onInternetRestored = cb; }

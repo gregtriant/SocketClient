@@ -52,6 +52,13 @@ void WifiManager::loop()
         _wifiConnected();
     }
 
+    // Don't fight a user-initiated scan for the (single) WiFi radio: WiFi.begin()/WiFi.mode()
+    // calls below would abort an in-progress WiFi.scanNetworks(), and vice versa. Defer our
+    // own background reconnect activity until the scan finishes.
+    if (WiFi.scanComplete() == WIFI_SCAN_RUNNING) {
+        return;
+    }
+
     if (now - _ap_time > 30000 && wifiStatus != WL_CONNECTED) { // if in AP mode for more than 30 sec, try to connect with old credentials
         _ap_time = now;
         SC_LOGI(WIFI_TAG, "30 seconds in ap mode... Connecting...");
@@ -68,6 +75,13 @@ void WifiManager::loop()
                 _connecting_time = 0;
                 _connecting_attempts = 0;
                 _wifi_status = WL_CONNECTION_LOST;
+                if (_pending_save) {
+                    // New candidate credentials didn't work; NVS was never touched, so just
+                    // reload what's actually saved and retry with that instead.
+                    _pending_save = false;
+                    SC_LOGI(WIFI_TAG, "Could not connect with new credentials, reverting to saved ones.");
+                    _nvsManager->getWifiCredentials(_wifi_ssid, _wifi_password);
+                }
                 _initAPMode();
                 return;
             }
@@ -101,6 +115,11 @@ void WifiManager::_wifiConnected()
     }
     _connecting_time = 0;     // Means connected.
     _connecting_attempts = 0; // Reset connecting attempts.
+    if (_pending_save) {
+        _pending_save = false;
+        _nvsManager->saveWifiCredentials(_wifi_ssid, _wifi_password);
+        SC_LOGI(WIFI_TAG, "New WiFi credentials saved.");
+    }
     SC_LOGI(WIFI_TAG, "Connected to %s! IP address: %s", _wifi_ssid.c_str(), WiFi.localIP().toString().c_str());
     _local_ip = WiFi.localIP().toString();
     _wifi_status = WiFi.status();

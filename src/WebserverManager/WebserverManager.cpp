@@ -97,8 +97,15 @@ void WebserverManager::_setupWebServer()
         {
             int16_t n = WiFi.scanComplete();
             if (n == WIFI_SCAN_FAILED) {
-                SC_LOGD(SERVER_TAG, "Starting async WiFi scan...");
-                WiFi.scanNetworks(true);
+                if (_wifiManager && _wifiManager->isConnecting()) {
+                    // WifiManager owns the radio right now (WiFi.begin() in flight); starting a
+                    // scan here would just abort it and immediately fail again. Ask the client
+                    // to keep polling instead of fighting it for the radio.
+                    request->send(202, "application/json", "[]");
+                    return;
+                }
+                int16_t startResult = WiFi.scanNetworks(true);
+                SC_LOGD(SERVER_TAG, "Starting async WiFi scan... result=%d mode=%d", startResult, (int)WiFi.getMode());
                 request->send(202, "application/json", "[]");
                 return;
             }
@@ -253,8 +260,7 @@ void WebserverManager::_handleWifiConnect(AsyncWebServerRequest *request)
         request->send(200, "text/plain", "Connecting to Wi-Fi...");
         SC_LOGD(SERVER_TAG, "Received Wi-Fi credentials");
 
-        _wifiManager->saveWifiCredentials(ssid, password);
-        _wifiManager->init();
+        _wifiManager->tryNewCredentials(ssid, password);
     } else {
         request->send(400, "text/plain", "Invalid SSID or Password");
     }
