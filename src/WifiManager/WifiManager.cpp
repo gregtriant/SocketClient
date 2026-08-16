@@ -18,6 +18,8 @@ WifiManager::WifiManager(NVSManager *nvsManager, const String& ap_ssid, const St
 
 void WifiManager::init()
 {
+    _managed = true;
+
     // check if we have credentials in NVS
     if (!_wifi_ssid.isEmpty() && !_wifi_password.isEmpty()) {
         SC_LOGI(WIFI_TAG, "WiFi credentials found in NVS.");
@@ -189,6 +191,40 @@ void WifiManager::_scanNetworks()
         }
         }
     }
+}
+
+
+bool WifiManager::tryAndSaveCredentials(String ssid, String password, unsigned long timeoutMs)
+{
+    String prevSsid = WiFi.SSID();
+    String prevPassword = WiFi.psk();
+    bool wasConnected = (WiFi.status() == WL_CONNECTED);
+
+    SC_LOGI(WIFI_TAG, "Testing WiFi credentials: %s", ssid.c_str());
+    if (WiFi.getMode() != CONST_MODE_AP_STA && WiFi.getMode() != CONST_MODE_STA) {
+        WiFi.mode(WIFI_STA);
+    }
+    WiFi.begin(ssid.c_str(), password.c_str());
+
+    unsigned long start = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - start < timeoutMs) {
+        delay(250);
+    }
+
+    bool connected = (WiFi.status() == WL_CONNECTED);
+    if (connected) {
+        _wifi_ssid = ssid;
+        _wifi_password = password;
+        _nvsManager->saveWifiCredentials(ssid, password);
+        SC_LOGI(WIFI_TAG, "Credentials verified and saved. IP: %s", WiFi.localIP().toString().c_str());
+    } else {
+        SC_LOGI(WIFI_TAG, "Could not connect with the given credentials; nothing saved.");
+        if (wasConnected && prevSsid.length() > 0) {
+            SC_LOGI(WIFI_TAG, "Reconnecting to previous network: %s", prevSsid.c_str());
+            WiFi.begin(prevSsid.c_str(), prevPassword.c_str());
+        }
+    }
+    return connected;
 }
 
 

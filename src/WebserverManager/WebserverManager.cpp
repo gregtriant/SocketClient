@@ -256,13 +256,26 @@ void WebserverManager::_handleWifiConnect(AsyncWebServerRequest *request)
     ssid.trim();
     password.trim();
 
-    if (ssid.length() > 0 && password.length() > 0) {
-        request->send(200, "text/plain", "Connecting to Wi-Fi...");
-        SC_LOGD(SERVER_TAG, "Received Wi-Fi credentials");
+    if (ssid.length() == 0 || password.length() == 0) {
+        request->send(400, "text/plain", "Invalid SSID or Password");
+        return;
+    }
 
+    SC_LOGD(SERVER_TAG, "Received Wi-Fi credentials");
+
+    if (_wifiManager->isManaged()) {
+        // WifiManager's loop() is actively pumped; let it connect asynchronously and
+        // self-heal (revert to saved credentials) on failure, as usual.
+        request->send(200, "text/plain", "Connecting to Wi-Fi...");
         _wifiManager->tryNewCredentials(ssid, password);
     } else {
-        request->send(400, "text/plain", "Invalid SSID or Password");
+        // Nobody is driving WifiManager's loop() (handleWifi is off), so there's no async
+        // state machine to fall back on: verify synchronously before responding, and only
+        // save to NVS if it actually connects.
+        bool connected = _wifiManager->tryAndSaveCredentials(ssid, password);
+        request->send(200, "text/plain", connected
+            ? "Connected and credentials saved."
+            : "Could not connect with those credentials; nothing was saved.");
     }
 }
 

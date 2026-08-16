@@ -431,12 +431,16 @@ void SocketClient::_init() {
     });
     _diagnostics->begin();
 
+    // Always available so WiFi credentials can be tested/stored in NVS via /sc/wifi/connect
+    // even when handleWifi is off (e.g. to pre-stage credentials ahead of a later OTA update
+    // that turns handleWifi on). Only actually takes over the connection (auto-reconnect,
+    // AP-mode fallback) when handleWifi is true.
+    String ap_ssid = String(_deviceType) + "-" + String(_deviceApp);
+    String ap_password = String(_token).substring(String(_token).length() - 10);
+    _wifiManager = new WifiManager(_nvsManager, ap_ssid, ap_password,
+        [this]() { this->reconnect(); },
+        [this]() { this->stopReconnect(); });
     if (_handleWifi) {
-        String ap_ssid = String(_deviceType) + "-" + String(_deviceApp);
-        String ap_password = String(_token).substring(String(_token).length() - 10);
-        _wifiManager = new WifiManager(_nvsManager, ap_ssid, ap_password,
-            [this]() { this->reconnect(); },
-            [this]() { this->stopReconnect(); });
         _wifiManager->init();
     }
 
@@ -494,7 +498,9 @@ void SocketClient::init(const char *socketHostURL, int port, bool _isSSL) {
 }
 
 void SocketClient::loop() {
-    if (_wifiManager) _wifiManager->loop();
+    // WifiManager's loop() drives auto-reconnect/AP-mode fallback; only run it when it actually
+    // owns the connection. Otherwise it stays passive, only used on-demand via /sc/wifi/connect.
+    if (_wifiManager && _handleWifi) _wifiManager->loop();
     if (_webserverManager) _webserverManager->loop();
     if (_webSocket) _webSocket->loop();
     if (_diagnostics) _diagnostics->loop();

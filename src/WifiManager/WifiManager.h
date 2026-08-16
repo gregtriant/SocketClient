@@ -37,6 +37,7 @@ protected:
     uint8_t _connecting_attempts = 0;
     wl_status_t _wifi_status     = WL_IDLE_STATUS; // current wifi status
     bool _pending_save           = false; // true while connecting with unsaved candidate credentials
+    bool _managed                = false; // true once init() has been called, i.e. loop() is being pumped
 
     // for AP mode
     String _ap_ssid     = "";
@@ -59,6 +60,7 @@ public:
     String getIP();
     String getMacAddress();
     bool isConnecting() { return _connecting_time != 0; }
+    bool isManaged() { return _managed; } // true if loop() is actively driving the connection
 
     // Attempts to connect with new candidate credentials without touching NVS yet.
     // They're only persisted once the connection actually succeeds (see _wifiConnected());
@@ -67,6 +69,11 @@ public:
         _pending_save = true;
         _connectingToWifi(ssid, password);
     }
+
+    // Blocking variant for when nobody is pumping loop() (i.e. handleWifi is off): connects,
+    // waits up to timeoutMs, saves to NVS only on success, and reconnects to whatever was
+    // previously active on failure so a bad test doesn't disrupt the current connection.
+    bool tryAndSaveCredentials(String ssid, String password, unsigned long timeoutMs = 15000);
 
     // void setInternetRestoredCallback(std::function<void()> cb) { _onInternetRestored = cb; }
 };
