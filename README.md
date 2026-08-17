@@ -235,6 +235,12 @@ When the server sends a `requestFile` message, the library calls `fileRequested`
 
 If `fileRequested` is `nullptr`, the library sends the string `"Hello from device!"` as a default test payload.
 
+If the callback leaves `buf` empty, the library treats that as "no such file":
+it skips the upload and sends a `fileError` with code `notFound`, which the
+browser surfaces immediately instead of waiting out its timeout. The other
+codes are `tooLarge` (over 4096 bytes) and `uploadFailed` (could not connect,
+or the server answered non-200).
+
 The final filename (after the callback runs) is sent to the server via the multipart
 `Content-Disposition: filename="..."` header.
 
@@ -258,6 +264,7 @@ OTA can be triggered two ways:
 | `@log` | `sendLog()` | `{text: "..."}` |
 | `@debugLog` | `sendDebugLog()` | `{level, text, timestamp}` |
 | `notification` | `sendNotification()` | `{body: "..."}` or `{body, options: {...}}` |
+| `fileError` | Automatic — a `requestFile` the library can't fulfil | `{requestId, filename, error}`; `error` is `notFound` (the `fileRequested` callback left `buf` empty), `tooLarge` (over 4096 bytes), or `uploadFailed` (couldn't connect, or the server answered non-200) |
 
 ### Server → Device
 

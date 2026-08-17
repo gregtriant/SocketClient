@@ -1,5 +1,18 @@
 # Changelog for Socket Client library
 
+## [1.6.0] - 2026-08-15
+
+### Added
+
+- `fileError` WebSocket message, sent when a `requestFile` cannot be fulfilled
+  - Codes: `notFound` (the `fileRequested` callback left the buffer empty), `tooLarge` (over 4096 bytes), `uploadFailed` (connection failed or non-200 response)
+  - Echoes the `requestId` from the inbound `requestFile` so the browser can match the reply to its request
+- `requestFile` now reads an optional `requestId` field
+
+### Changed
+
+- No public API change. `FileRequestedFunction` keeps its signature; leaving the buffer empty now reports `notFound` to the server instead of only logging locally
+
 ## [1.5.0] - 2026-07-31
 
 ### Added
