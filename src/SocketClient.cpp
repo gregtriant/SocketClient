@@ -298,6 +298,10 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         // "null" via .as<String>() — that would be a truthy sentinel on the
         // wire and break the browser's legacy-request check. isNull() covers
         // both an absent key and an explicit JSON null; map both to "".
+        // TODO(sensordata2#29): the guard can go once no *server* sends a null
+        // requestId either — note that is a later milestone than retiring
+        // pre-1.6.0 devices, since an old server paired with a new device hits
+        // exactly this case.
         String requestId = _doc["requestId"].isNull() ? String("") : _doc["requestId"].as<String>();
         if (fileUrl.isEmpty()) { SC_LOGE(WS_TAG, "requestFile: missing url"); return; }
         _uploadFile(fileUrl, _doc["filename"].as<String>(), requestId);
