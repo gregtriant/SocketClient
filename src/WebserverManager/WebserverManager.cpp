@@ -72,6 +72,7 @@ void WebserverManager::_setupWebServer()
      * @param[out] SSID
      * @param[out] RSSI
      * @param[out] status
+     * @param[out] lib      SocketClient library "<version> - <commit>"
      * @return json
      */
     _server.on("/sc/info", HTTP_GET, [this](AsyncWebServerRequest *request)
@@ -87,7 +88,8 @@ void WebserverManager::_setupWebServer()
             res += "\"heap\":" + String(ESP.getFreeHeap()) + ",";
             res += "\"ssid\":\"" + String(WiFi.SSID()) + "\",";
             res += "\"rssi\":" + String(WiFi.RSSI()) + ",";
-            res += "\"channel\":" + String(WiFi.channel()) ;
+            res += "\"channel\":" + String(WiFi.channel()) + ",";
+            res += "\"lib\":\"" SOCKETCLIENT_LIB_INFO "\"";
             res += "}";
             //- res += "\"status\":" + status + "}";
             request->send(200, "application/json", res);

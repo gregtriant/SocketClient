@@ -345,6 +345,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
             globalSC->_doc["deviceApp"] = globalSC->_deviceApp;
             globalSC->_doc["deviceType"] = globalSC->_deviceType;
             globalSC->_doc["version"] = globalSC->_version;
+            globalSC->_doc["lib"] = SOCKETCLIENT_LIB_INFO;
             globalSC->_doc["localIP"] = WiFi.localIP().toString(); //-globalSC->_wifiManager->getIP();
             globalSC->_doc["token"] = globalSC->_token;
             String JsonToSend = "";

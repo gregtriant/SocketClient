@@ -1,5 +1,5 @@
 {
-    "version": "1.6.0",
+    "version": "1.7.1",
     "name": "SocketClient",
     "description": "WebSocket client for Sensordata.space",
     "repository": {
@@ -23,7 +23,8 @@
     "license": "MIT",
     "build": {
         "unflags": "-std=gnu++11",
-        "flags": "-std=gnu++17"
+        "flags": "-std=gnu++17",
+        "extraScript": "extra_script.py"
     },
     "platforms": [
         "espressif8266",

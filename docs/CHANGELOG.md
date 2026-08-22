@@ -1,5 +1,23 @@
 # Changelog for Socket Client library
 
+## [1.7.1] - 2026-08-22
+
+### Added
+
+- `lib` field, reporting the SocketClient library's own identity as
+  `"<version> - <commit>"` — distinct from `version`, which is the firmware app's
+  version. Sent in both the `connect` WebSocket message and the `/sc/info` HTTP
+  endpoint, from a single `SOCKETCLIENT_LIB_INFO` macro so the two can't drift.
+  - Version comes from `library.json`; commit is the git short hash at build time,
+    suffixed `-dirty` when tracked files differ from that commit
+  - Both are injected by `extra_script.py` (`SOCKETCLIENT_LIB_VERSION` /
+    `SOCKETCLIENT_LIB_COMMIT`); no firmware code changes needed to pick this up
+  - Falls back to `"unknown"` when the library has no `.git` (e.g. installed from the
+    PlatformIO registry) or git is unavailable
+  - Emitted last in `/sc/info` so the `/sc` root page, which renders its keys in
+    order, shows it after the wifi info without any page changes
+- Build-time log line: `SocketClient: libVersion = <version> (<commit>)`.
+
 ## [1.6.0] - 2026-08-15
 
 ### Added

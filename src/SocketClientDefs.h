@@ -47,6 +47,24 @@
 #define DEFAULT_HOST "sensordata.space"
 #define DEFAULT_APP_NAME "SocketClient"
 
+// Injected by extra_script.py from library.json's "version" field at build time.
+#ifndef SOCKETCLIENT_LIB_VERSION
+#define SOCKETCLIENT_LIB_VERSION "unknown"
+#endif
+
+// Injected by extra_script.py from `git rev-parse --short HEAD` at build time.
+// Gets a "-dirty" suffix when tracked files differ from that commit, and is
+// "unknown" when the library has no .git (e.g. installed from the registry).
+#ifndef SOCKETCLIENT_LIB_COMMIT
+#define SOCKETCLIENT_LIB_COMMIT "unknown"
+#endif
+
+// The one string both /sc/info and the `connect` message report, so the value
+// shown on the device's own page and the value stored server-side can't drift.
+// Adjacent string literals concatenate at compile time — no runtime String, and
+// it lives in flash rather than being rebuilt on every connect.
+#define SOCKETCLIENT_LIB_INFO SOCKETCLIENT_LIB_VERSION " - " SOCKETCLIENT_LIB_COMMIT
+
 
 /**
  * @brief JsonVariant does reference counting, no need to use &.
