@@ -32,6 +32,11 @@ void Diagnostics::begin() {
     _nvsManager->putUInt(NVS_DIAG_NAMESPACE, NVS_DIAG_RESET_KEY, _resetCount);
 }
 
+// Called from the WStype_CONNECTED event.
+void Diagnostics::onSocketConnected() {
+    _reconnectCount++;
+}
+
 void Diagnostics::onConnected(bool enabled) {
     _enabled = enabled;
     if (_enabled) _send();
@@ -58,8 +63,9 @@ void Diagnostics::_send() {
 #if defined(ESP32) || defined(LIBRETUYA)
     doc["minFreeHeap"] = (uint32_t)ESP.getMinFreeHeap();
 #endif
-    doc["resetReason"] = _resetReason;
-    doc["resetCount"]  = _resetCount;
+    doc["resetReason"]    = _resetReason;
+    doc["resetCount"]     = _resetCount;
+    doc["reconnectCount"] = _reconnectCount;
 
     String output;
     serializeJson(doc, output);

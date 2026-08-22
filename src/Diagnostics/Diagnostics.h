@@ -22,6 +22,7 @@ public:
     Diagnostics(NVSManager* nvsManager, SendFn sendFn);
 
     void begin();
+    void onSocketConnected();
     void onConnected(bool enabled);
     void onDebugConfig(bool enabled);
     void loop();
@@ -31,6 +32,11 @@ private:
     SendFn _sendFn;
     bool _enabled = false;
     uint32_t _resetCount = 0;
+    // Deliberately RAM-only, unlike _resetCount: it must start over at every boot,
+    // so that a drop back to 1 is what distinguishes a reboot from a plain
+    // reconnect. Counts every handshake including the first one after boot, so 1
+    // means "still on the connection we opened at boot".
+    uint32_t _reconnectCount = 0;
     String _resetReason;
     unsigned long _lastSent = 0;
     bool _hasSent = false;

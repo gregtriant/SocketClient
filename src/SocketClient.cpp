@@ -338,6 +338,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
             globalSC->_doc.clear();
             globalSC->last_dog = millis();
             globalSC->last_png = millis();
+            if (globalSC->_diagnostics) globalSC->_diagnostics->onSocketConnected();
             // SC_LOGD(WS_TAG, "Connected to url: %s", payload);
             // Prepare and send a "connect" message
             globalSC->_doc["message"] = "connect";

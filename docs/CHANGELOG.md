@@ -1,5 +1,21 @@
 # Changelog for Socket Client library
 
+## [1.8.0] - 2026-08-22
+
+### Added
+
+- `reconnectCount` field in the `@diagnostics` payload — how many times the device has
+  connected to the server since it last booted.
+  - Held in RAM only, deliberately unlike `resetCount`, which persists in NVS. It starts
+    over at every boot, so a drop back to `1` on the chart marks a reboot while a step up
+    marks a plain reconnect — which is the pair the Diagnostics page plots together.
+  - Incremented on the `WStype_CONNECTED` event, i.e. when the WebSocket handshake
+    completes, *before* the server has validated the token. Handshakes the server goes on
+    to reject are counted too, so a device stuck failing auth increments while sending
+    nothing; the count then jumps by more than one when it finally succeeds.
+  - Counts the first connection after boot as well, so the lowest value ever reported is
+    `1`, never `0` — the device is not connected yet at `0`, so no sample can carry it.
+
 ## [1.7.1] - 2026-08-22
 
 ### Added
