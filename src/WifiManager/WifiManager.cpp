@@ -13,6 +13,7 @@ WifiManager::WifiManager(NVSManager *nvsManager, const String& ap_ssid, const St
     _mac_address = WiFi.macAddress();
     _local_ip = WiFi.localIP().toString(); // in case already connected to wifi
     _nvsManager->getWifiCredentials(_wifi_ssid, _wifi_password);
+    _boot_time = millis();
 }
 
 
@@ -61,9 +62,9 @@ void WifiManager::loop()
         return;
     }
 
-    if (now - _ap_time > 30000 && wifiStatus != WL_CONNECTED) { // if in AP mode for more than 30 sec, try to connect with old credentials
+    if (now - _ap_time > 30000 && wifiStatus != WL_CONNECTED) { // periodic retry with saved credentials (also drives the AP-mode retry cycle)
         _ap_time = now;
-        SC_LOGI(WIFI_TAG, "30 seconds in ap mode... Connecting...");
+        SC_LOGI(WIFI_TAG, "Retrying connection with saved credentials...");
         init(); // connect with old credentials
     }
 
@@ -84,7 +85,23 @@ void WifiManager::loop()
                     SC_LOGI(WIFI_TAG, "Could not connect with new credentials, reverting to saved ones.");
                     _nvsManager->getWifiCredentials(_wifi_ssid, _wifi_password);
                 }
-                _initAPMode();
+                if (_everConnected) {
+                    // We've had a working connection before (this is a later drop, not initial
+                    // setup) — keep retrying station-only, indefinitely, until the next reboot.
+                    // AP+STA fallback shares the single radio with the STA scan/connect and can
+                    // itself hinder reconnecting, so it's reserved for cases below where we
+                    // haven't got a connection to fall back to in the first place.
+                    SC_LOGI(WIFI_TAG, "Lost connection after previously connecting; retrying WiFi only, no AP fallback.");
+                    _ap_time = now; // let the periodic retry above drive the next attempt
+                } else if (now - _boot_time < AP_FALLBACK_GRACE_MS) {
+                    // Never connected yet this boot, but still within the post-boot grace window
+                    // (e.g. the router is rebooting too after a shared power event) — keep
+                    // retrying the saved credentials station-only rather than jumping to AP mode.
+                    SC_LOGI(WIFI_TAG, "Still trying saved credentials (post-boot grace window)...");
+                    _ap_time = now;
+                } else {
+                    _initAPMode();
+                }
                 return;
             }
         }
@@ -117,6 +134,7 @@ void WifiManager::_wifiConnected()
     }
     _connecting_time = 0;     // Means connected.
     _connecting_attempts = 0; // Reset connecting attempts.
+    _everConnected = true;
     if (_pending_save) {
         _pending_save = false;
         _nvsManager->saveWifiCredentials(_wifi_ssid, _wifi_password);
