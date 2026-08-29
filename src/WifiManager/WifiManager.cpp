@@ -62,7 +62,19 @@ void WifiManager::loop()
         return;
     }
 
-    if (now - _ap_time > 30000 && wifiStatus != WL_CONNECTED) { // periodic retry with saved credentials (also drives the AP-mode retry cycle)
+    // Once a connect attempt has given up at least once since the last successful connect,
+    // back off hard between retries (30 min, then 1h) instead of the normal 30s cadence - a
+    // reconnect attempt disrupts anything else sharing the radio (e.g. EspxNet's ESP-NOW
+    // mode), so it shouldn't repeat every 30s for the entire duration of an outage. Only
+    // applies once _everConnected (a later drop, not first boot) - the not-yet-connected/
+    // AP-fallback-grace-window cadence below is unrelated and untouched.
+    uint64_t retryIntervalMs = 30000;
+    if (_everConnected && _reconnect_backoff_stage > 0) {
+        if (_reconnect_backoff_stage <= 1) retryIntervalMs = RECONNECT_FIRST_BACKOFF_MS;
+        else if (_reconnect_backoff_stage == 2) retryIntervalMs = RECONNECT_SECOND_BACKOFF_MS;
+        else retryIntervalMs = RECONNECT_REPEAT_BACKOFF_MS;
+    }
+    if (now - _ap_time > retryIntervalMs && wifiStatus != WL_CONNECTED) { // periodic retry with saved credentials (also drives the AP-mode retry cycle)
         _ap_time = now;
         SC_LOGI(WIFI_TAG, "Retrying connection with saved credentials...");
         init(); // connect with old credentials
@@ -90,9 +102,17 @@ void WifiManager::loop()
                     // setup) — keep retrying station-only, indefinitely, until the next reboot.
                     // AP+STA fallback shares the single radio with the STA scan/connect and can
                     // itself hinder reconnecting, so it's reserved for cases below where we
-                    // haven't got a connection to fall back to in the first place.
-                    SC_LOGI(WIFI_TAG, "Lost connection after previously connecting; retrying WiFi only, no AP fallback.");
-                    _ap_time = now; // let the periodic retry above drive the next attempt
+                    // haven't got a connection to fall back to in the first place. Back off hard
+                    // between attempts (see the retryIntervalMs comment above) rather than
+                    // retrying every 30s, so a down router doesn't keep contesting the radio with
+                    // whatever else is using it (e.g. EspxNet's ESP-NOW mode) for the whole outage.
+                    _reconnect_backoff_stage++;
+                    uint64_t nextMs;
+                    if (_reconnect_backoff_stage <= 1) nextMs = RECONNECT_FIRST_BACKOFF_MS;
+                    else if (_reconnect_backoff_stage == 2) nextMs = RECONNECT_SECOND_BACKOFF_MS;
+                    else nextMs = RECONNECT_REPEAT_BACKOFF_MS;
+                    SC_LOGI(WIFI_TAG, "Lost connection after previously connecting; next retry in %llu ms, no AP fallback.", nextMs);
+                    _ap_time = now; // periodic retry gate above now drives the next attempt at the tiered interval
                 } else if (now - _boot_time < AP_FALLBACK_GRACE_MS) {
                     // Never connected yet this boot, but still within the post-boot grace window
                     // (e.g. the router is rebooting too after a shared power event) — keep
@@ -134,6 +154,7 @@ void WifiManager::_wifiConnected()
     }
     _connecting_time = 0;     // Means connected.
     _connecting_attempts = 0; // Reset connecting attempts.
+    _reconnect_backoff_stage = 0; // Reset retry backoff - a fresh drop starts its own budget.
     _everConnected = true;
     if (_pending_save) {
         _pending_save = false;

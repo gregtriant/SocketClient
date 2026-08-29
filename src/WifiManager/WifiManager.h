@@ -41,12 +41,24 @@ protected:
     bool _everConnected          = false; // true once WiFi has connected at least once since boot; gates AP+STA fallback
     uint64_t _boot_time          = 0;     // millis() at construction; start of the post-boot AP-fallback grace window
 
+    // No channel awareness of any kind here - WifiManager doesn't know or care what else
+    // (e.g. EspxNet) shares the radio. Its only job re: that is timing: bound each connect
+    // attempt and back off hard between retries so it doesn't hog the radio - see
+    // _reconnect_backoff_stage below and _connectingToWifi()'s give-up branch.
+    uint32_t _reconnect_backoff_stage = 0;   // 0 = no give-up yet since last connect; 1 = first
+                                              // give-up (next retry in RECONNECT_FIRST_BACKOFF_MS);
+                                              // 2 = second give-up (RECONNECT_SECOND_BACKOFF_MS);
+                                              // >=3 = RECONNECT_REPEAT_BACKOFF_MS cadence
+    static const uint64_t RECONNECT_FIRST_BACKOFF_MS = 15UL * 60 * 1000;   // 15 min
+    static const uint64_t RECONNECT_SECOND_BACKOFF_MS = 30UL * 60 * 1000;  // 30 min
+    static const uint64_t RECONNECT_REPEAT_BACKOFF_MS = 60UL * 60 * 1000;  // 1h
+
     // How long to keep retrying saved credentials station-only after boot before giving up and
     // falling back to AP+STA mode. Long enough to ride out a router reboot (e.g. a shared power
     // blip resets both the device and the router; routers commonly take 30-90s to come back up),
     // short enough that a genuinely wrong/missing password doesn't leave the device unreachable
     // for provisioning for too long.
-    static const uint64_t AP_FALLBACK_GRACE_MS = 180000; // 3 min
+    static const uint64_t AP_FALLBACK_GRACE_MS = 120000; // 2 min
 
     // for AP mode
     String _ap_ssid     = "";
