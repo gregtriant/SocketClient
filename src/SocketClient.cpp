@@ -391,6 +391,18 @@ void SocketClient::reconnect() {
         return;
     }
 
+    // Mark that a reconnect attempt is in flight *unconditionally*, regardless of which
+    // caller triggered this (WifiManager's _onInternetRestored callback on a fresh WiFi
+    // connection, or watchdog()'s own retry branch) - previously only watchdog() set this,
+    // so a WifiManager-triggered call left last_reconnect stale, and watchdog()'s very next
+    // tick would see last_reconnect==0 (or long-expired) and fire a second, redundant
+    // reconnect() that tore down the WebSocketsClient this call had just created, causing a
+    // needless disconnect-then-reconnect right after every fresh WiFi connection. A genuine
+    // new WiFi connection is also a good reason to drop back to the fast baseline retry
+    // cadence rather than staying at whatever backoff a prior, unrelated outage left behind.
+    last_reconnect = millis();
+    reconnect_time = 30000;
+
     WiFi.hostname(String(_deviceType) + "-" + String(_deviceApp));
 
     SC_LOGD(WS_TAG, "<reconnect>");
