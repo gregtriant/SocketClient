@@ -1,4 +1,18 @@
 #pragma once
+
+// Must come before <WebSocketsClient.h> pulls in WebSockets.h, whose own #ifndef guard only
+// takes the library's 5000ms default if nothing has defined this macro yet. That default
+// leaves zero margin for a "cold" TLS connect (no recently-cached route/ARP/DNS state) to a
+// host that just plain takes a few seconds to answer on a fresh connection - confirmed on
+// real hardware (WaterTank/Water2): a cold connect to api.sensordata.space measured ~5036ms
+// from a clean state, landing right on top of the old 5000ms budget, so any tiny bit of
+// extra jitter reliably tipped it into start_ssl_client() failing with a bare select()
+// timeout - not a TLS/certificate/DNS problem, just too little time budgeted for a slow but
+// otherwise healthy connection. 15s leaves real headroom.
+#ifndef WEBSOCKETS_TCP_TIMEOUT
+#define WEBSOCKETS_TCP_TIMEOUT 15000
+#endif
+
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WebSocketsClient.h>
