@@ -163,17 +163,13 @@ void WifiManager::_wifiConnected()
     }
     SC_LOGI(WIFI_TAG, "Connected to %s! IP address: %s", _wifi_ssid.c_str(), WiFi.localIP().toString().c_str());
 
-    // Re-point DNS at public resolvers instead of whatever the router/DHCP handed out. Keeps
-    // the DHCP-assigned IP/gateway/subnet as-is (only dns1/dns2 actually change) - this is
-    // just swapping which server DNS queries go to, not a move to a static network config. Guards
-    // against exactly the failure mode observed on real hardware (WaterTank): WiFi/DHCP came up
-    // fine after a power event, but the router's own DNS resolver/forwarder stayed broken for
-    // hours, so every hostname lookup for the cloud host failed while the link was otherwise
-    // healthy. Two independent providers so one being down doesn't repeat the same failure.
-    // Note: WiFi.config() stops the DHCP client for this session (no lease renewal) - harmless
-    // for a device that keeps a stable IP on its LAN, and gets re-applied fresh on every
-    // reconnect anyway, since WiFi.begin() re-runs DHCP from scratch first.
-    WiFi.config(WiFi.localIP(), WiFi.gatewayIP(), WiFi.subnetMask(), IPAddress(8, 8, 8, 8), IPAddress(1, 1, 1, 1));
+    // No DNS handling here at all, deliberately - WifiManager does not touch DNS in any way
+    // (not WiFi.config(), not esp_netif_set_dns_info(), nothing). DHCP's own DNS servers are
+    // used as-is. (Two things were tried and both reverted: WiFi.config() silently stopped DHCP
+    // lease renewal for the rest of the boot - see git history - and a narrower esp_netif-only
+    // DNS override was tried after that specifically to avoid that side effect, but the DNS
+    // failures seen on real hardware persisted regardless, pointing at the network's own DNS
+    // being broken rather than anything fixable from here.)
 
     _local_ip = WiFi.localIP().toString();
     _wifi_status = WiFi.status();
