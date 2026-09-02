@@ -42,10 +42,10 @@ void SocketClient::watchdog() {
         SC_LOGD(WS_TAG, "%u", xmin);
         SC_LOGD(WS_TAG, "* reconnect *\n");
         last_reconnect = millis();
-        reconnect_time += 60000;
-        if (reconnect_time > max_reconnect_time)
-            reconnect_time = max_reconnect_time;
-        sc->reconnect();
+        // false: this is a retry, not a fresh condition - keep growing the backoff below
+        // rather than letting reconnect() reset it back to the 30s baseline.
+        sc->reconnect(false);
+        reconnect_time = (reconnect_time > max_reconnect_time / 2) ? max_reconnect_time : reconnect_time * 2;
         return ;
     }
 
@@ -385,7 +385,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
     }
 }
 
-void SocketClient::reconnect() {
+void SocketClient::reconnect(bool resetBackoff) {
     if (!WiFi.isConnected()) {
         SC_LOGD(WS_TAG, "<No WiFi>");
         return;
@@ -397,11 +397,14 @@ void SocketClient::reconnect() {
     // so a WifiManager-triggered call left last_reconnect stale, and watchdog()'s very next
     // tick would see last_reconnect==0 (or long-expired) and fire a second, redundant
     // reconnect() that tore down the WebSocketsClient this call had just created, causing a
-    // needless disconnect-then-reconnect right after every fresh WiFi connection. A genuine
-    // new WiFi connection is also a good reason to drop back to the fast baseline retry
-    // cadence rather than staying at whatever backoff a prior, unrelated outage left behind.
+    // needless disconnect-then-reconnect right after every fresh WiFi connection.
     last_reconnect = millis();
-    reconnect_time = 30000;
+    // A genuine new condition (initial boot, or a fresh WiFi connection via
+    // _onInternetRestored) is a good reason to drop back to the fast baseline retry cadence.
+    // watchdog()'s own retries pass false so this doesn't undo the exponential backoff it's
+    // managing itself (see watchdog()) - otherwise every retry would clobber reconnect_time
+    // straight back to 30s and the backoff would never actually grow.
+    if (resetBackoff) reconnect_time = 30000;
 
     WiFi.hostname(String(_deviceType) + "-" + String(_deviceApp));
 

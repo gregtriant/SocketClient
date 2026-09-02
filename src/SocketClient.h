@@ -92,15 +92,20 @@ class SocketClient {
     static unsigned long last_png;
     static const unsigned long tick_time = 6000;
     static unsigned long last_reconnect;
-    static unsigned long reconnect_time;                      //- 30 sec
-    static const unsigned long max_reconnect_time = 600000L;  //- 10 min
+    static unsigned long reconnect_time;                       //- 30 sec, doubles on each failed
+                                                                //  attempt (see watchdog()) up to the cap below
+    static const unsigned long max_reconnect_time = 1800000L; //- 30 min cap
     static const unsigned long watchdog_time = (5 * tick_time);      //- 30 s; must be > heartbeat interval (15 s)
 
 public:
     SocketClient();
     ~SocketClient();
 
-    void reconnect();
+    // resetBackoff: true (default) drops reconnect_time back to its 30s baseline - correct for
+    // a genuinely new condition (initial boot, a fresh WiFi connection via WifiManager's
+    // _onInternetRestored callback). watchdog() itself calls reconnect(false) so its own
+    // doubling backoff (see watchdog()'s definition) isn't immediately undone by this call.
+    void reconnect(bool resetBackoff = true);
     void stopReconnect();
     void sendStatusWithSocket(bool save = false);  //- do the default (no receiverid)
     void sendLog(const String &message);

@@ -162,6 +162,19 @@ void WifiManager::_wifiConnected()
         SC_LOGI(WIFI_TAG, "New WiFi credentials saved.");
     }
     SC_LOGI(WIFI_TAG, "Connected to %s! IP address: %s", _wifi_ssid.c_str(), WiFi.localIP().toString().c_str());
+
+    // Re-point DNS at public resolvers instead of whatever the router/DHCP handed out. Keeps
+    // the DHCP-assigned IP/gateway/subnet as-is (only dns1/dns2 actually change) - this is
+    // just swapping which server DNS queries go to, not a move to a static network config. Guards
+    // against exactly the failure mode observed on real hardware (WaterTank): WiFi/DHCP came up
+    // fine after a power event, but the router's own DNS resolver/forwarder stayed broken for
+    // hours, so every hostname lookup for the cloud host failed while the link was otherwise
+    // healthy. Two independent providers so one being down doesn't repeat the same failure.
+    // Note: WiFi.config() stops the DHCP client for this session (no lease renewal) - harmless
+    // for a device that keeps a stable IP on its LAN, and gets re-applied fresh on every
+    // reconnect anyway, since WiFi.begin() re-runs DHCP from scratch first.
+    WiFi.config(WiFi.localIP(), WiFi.gatewayIP(), WiFi.subnetMask(), IPAddress(8, 8, 8, 8), IPAddress(1, 1, 1, 1));
+
     _local_ip = WiFi.localIP().toString();
     _wifi_status = WiFi.status();
     if (_onInternetRestored) {
