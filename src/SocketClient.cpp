@@ -28,7 +28,14 @@ void SocketClient::watchdog() {
         return ;
     WebSocketsClient &wsc = *sc->_webSocket;
 
-    if (!wsc.isConnected() && (last_reconnect == 0 || (millis() - last_reconnect) > reconnect_time)) {
+    // Gated on WiFi being up: with no WiFi, reconnect() below is a guaranteed no-op anyway
+    // (see its own early-return), so there's no point advancing last_reconnect/doubling
+    // reconnect_time for an attempt that can't happen - this backoff only ever grows while
+    // there was actually a chance to reconnect and it failed. WifiManager's
+    // _onInternetRestored callback still resets reconnect_time to baseline the moment WiFi
+    // does come back (see reconnect()'s resetBackoff param), independent of this gate.
+    if (!wsc.isConnected() && WiFi.isConnected() &&
+        (last_reconnect == 0 || (millis() - last_reconnect) > reconnect_time)) {
         // Check if device is idle; default to true if callback is not set (safe default)
         bool device_idle = (!sc->_isIdle) || sc->_isIdle();
 

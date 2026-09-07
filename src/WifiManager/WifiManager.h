@@ -45,13 +45,30 @@ protected:
     // (e.g. EspxNet) shares the radio. Its only job re: that is timing: bound each connect
     // attempt and back off hard between retries so it doesn't hog the radio - see
     // _reconnect_backoff_stage below and _connectingToWifi()'s give-up branch.
-    uint32_t _reconnect_backoff_stage = 0;   // 0 = no give-up yet since last connect; 1 = first
-                                              // give-up (next retry in RECONNECT_FIRST_BACKOFF_MS);
-                                              // 2 = second give-up (RECONNECT_SECOND_BACKOFF_MS);
-                                              // >=3 = RECONNECT_REPEAT_BACKOFF_MS cadence
-    static const uint64_t RECONNECT_FIRST_BACKOFF_MS = 15UL * 60 * 1000;   // 15 min
-    static const uint64_t RECONNECT_SECOND_BACKOFF_MS = 30UL * 60 * 1000;  // 30 min
-    static const uint64_t RECONNECT_REPEAT_BACKOFF_MS = 60UL * 60 * 1000;  // 1h
+    uint32_t _reconnect_backoff_stage = 0;   // 0 = no give-up yet since last connect; N = the
+                                              // Nth consecutive give-up - see
+                                              // _wifiReconnectBackoffMs() for the resulting delay
+    static const uint64_t RECONNECT_BACKOFF_BASE_MS = 30UL * 1000;        // 30s - first backoff
+                                                                            // after a give-up
+    static const uint64_t RECONNECT_BACKOFF_MAX_MS  = 30UL * 60 * 1000;   // 30 min cap, held
+                                                                            // indefinitely once hit
+                                                                            // (e.g. a router that
+                                                                            // stays down)
+
+    // Doubles from RECONNECT_BACKOFF_BASE_MS each consecutive give-up (stage 1 = 30s, 2 = 60s,
+    // 3 = 120s, ...), capped at RECONNECT_BACKOFF_MAX_MS. stage 0 (no give-up yet) also returns
+    // the base interval - this is what drives the ~30s retry cadence during the initial
+    // AP-fallback grace window too (see loop()), where the stage never advances at all.
+    // Bounds the shift itself (rather than relying on the ms-vs-cap comparison alone) so an
+    // arbitrarily large stage count over a very long-running outage can never shift a uint64_t
+    // by more than 63 bits - undefined behavior otherwise.
+    static uint64_t _wifiReconnectBackoffMs(uint32_t stage) {
+        if (stage == 0) return RECONNECT_BACKOFF_BASE_MS;
+        uint32_t shift = stage - 1;
+        if (shift >= 6) return RECONNECT_BACKOFF_MAX_MS;   // 30s << 6 = 1920s already > 30 min cap
+        uint64_t ms = RECONNECT_BACKOFF_BASE_MS << shift;
+        return (ms > RECONNECT_BACKOFF_MAX_MS) ? RECONNECT_BACKOFF_MAX_MS : ms;
+    }
 
     // How long to keep retrying saved credentials station-only after boot before giving up and
     // falling back to AP+STA mode. Long enough to ride out a router reboot (e.g. a shared power

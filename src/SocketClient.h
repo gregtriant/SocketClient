@@ -108,7 +108,7 @@ class SocketClient {
     static unsigned long last_reconnect;
     static unsigned long reconnect_time;                       //- 30 sec, doubles on each failed
                                                                 //  attempt (see watchdog()) up to the cap below
-    static const unsigned long max_reconnect_time = 1800000L; //- 30 min cap
+    static const unsigned long max_reconnect_time = 180000L;  //- 3 min cap
     static const unsigned long watchdog_time = (5 * tick_time);      //- 30 s; must be > heartbeat interval (15 s)
 
 public:
