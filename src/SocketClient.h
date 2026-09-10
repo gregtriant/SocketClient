@@ -86,7 +86,6 @@ class SocketClient {
     ReceivedCommandFunction receivedCommand;
     EntityChangedFunction entityChanged;
     ConnectedFunction connected;
-    IsIdleFunction _isIdle;
     FileReceivedFunction  _fileReceived;
     FileRequestedFunction _fileRequested;
 

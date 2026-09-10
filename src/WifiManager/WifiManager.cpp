@@ -130,7 +130,12 @@ void WifiManager::_connectingToWifi(String ssid, String password)
     _wifi_password = password;
     _connecting_time = millis();
     _connecting_attempts = 0;
-    _wifi_status = WiFi.status();
+    // Deliberately NOT touching _wifi_status here - it must only ever be written by loop()'s
+    // paired transition-detection branches (lost/connected), otherwise a status read that
+    // happens to land on WL_CONNECTED before that branch runs can mask the real "just
+    // reconnected" transition, so _wifiConnected()/_onInternetRestored (and, downstream,
+    // SocketClient::reconnect()) never fires - leaving stopReconnect()'s MAX_ULONG reconnect
+    // interval stuck until reboot.
     SC_LOGI(WIFI_TAG, "Connecting to WiFi: %s", _wifi_ssid.c_str());
     if (WiFi.getMode() != CONST_MODE_AP_STA && WiFi.getMode() != CONST_MODE_STA) {
         WiFi.mode(WIFI_STA);

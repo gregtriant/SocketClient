@@ -36,15 +36,6 @@ void SocketClient::watchdog() {
     // does come back (see reconnect()'s resetBackoff param), independent of this gate.
     if (!wsc.isConnected() && WiFi.isConnected() &&
         (last_reconnect == 0 || (millis() - last_reconnect) > reconnect_time)) {
-        // Check if device is idle; default to true if callback is not set (safe default)
-        bool device_idle = (!sc->_isIdle) || sc->_isIdle();
-
-        if (!device_idle) {
-            // Program is active; defer reconnect until next check
-            return ;
-        }
-
-        // Device is idle; safe to reconnect
         unsigned int xmin = millis() / (60000);
         SC_LOGD(WS_TAG, "%u", xmin);
         SC_LOGD(WS_TAG, "* reconnect *\n");
@@ -508,7 +499,6 @@ void SocketClient::init(const SocketClientConfig_t *config) {
     ASSIGN_IF_NOT_NULLPTR(receivedCommand, config->receivedCommand);
     ASSIGN_IF_NOT_NULLPTR(entityChanged, config->entityChanged);
     ASSIGN_IF_NOT_NULLPTR(connected, config->connected);
-    ASSIGN_IF_NOT_NULLPTR(_isIdle, config->isIdle);
     ASSIGN_IF_NOT_NULLPTR(_fileReceived,  config->fileReceived);
     ASSIGN_IF_NOT_NULLPTR(_fileRequested, config->fileRequested);
 
