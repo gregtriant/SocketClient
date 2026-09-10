@@ -35,19 +35,19 @@
         { 
             "name": "ArduinoJson",
             "owner": "bblanchon",
-            "version": "^7.4.1",
+            "version": "^7.4.3",
             "platforms": [ "espressif32", "espressif8266" ]
         },
         { 
             "name": "ESPAsyncWebServer-esphome",
             "owner": "esphome",
-            "version": "^3.3.0",
+            "version": "^3.4.0",
             "platforms": [ "espressif32", "espressif8266" ]
         },
         {
             "name": "WebSockets",
             "owner": "links2004",
-            "version": "^2.6.1",
+            "version": "^2.7.2",
             "platforms": [ "espressif32", "espressif8266" ]
         },
         {
@@ -59,7 +59,7 @@
         {
             "name": "Preferences",
             "owner": "vshymanskyy",
-            "version": "^2.1.0",
+            "version": "^2.4.0",
             "platforms": "espressif8266"
         },
         {
