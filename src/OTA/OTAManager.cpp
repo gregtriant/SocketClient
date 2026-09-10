@@ -17,6 +17,15 @@ void OTAManager::startOTA(String updateURL)
 #if defined(ESP32) || defined(LIBRETUYA)
 void OTAManager::_checkUpdate(String host)
 {
+  // _otaManager is a single object reused for every "update" command over the device's
+  // whole uptime (see SocketClient::_init()/_otaManager->startOTA()) -- _currentLength's
+  // in-class initializer only runs once, at construction, so a retry after a prior attempt
+  // was interrupted partway through (e.g. connection dropped mid-transfer) would otherwise
+  // start this attempt with a stale, non-zero count already left over. That made
+  // _updateFirmware()'s completion check trip early, calling Update.end(true) (which
+  // finalizes without verifying the size) on a truncated image and rebooting into it.
+  _currentLength = 0;
+
   HTTPClient client;
   // Connect to external web server
   // WiFiClient wificlient;
