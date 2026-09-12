@@ -77,10 +77,13 @@ protected:
     // for provisioning for too long.
     static const uint64_t AP_FALLBACK_GRACE_MS = 120000; // 2 min
 
-    // for AP mode
+    // for AP mode. Open network (no password) unless the consumer opts into one via
+    // SocketClient::setPasswordAP() - see _initAPMode().
     String _ap_ssid     = "";
     String _ap_password = "";
     uint64_t _ap_time   = 0;
+    bool _apStaFinal    = false; // true once AP+STA fallback has been entered this boot; latched
+                                  // until reboot, per _initAPMode()
 
     void _wifiConnected();
     void _connectingToWifi(String ssid, String password);
@@ -90,8 +93,14 @@ protected:
     std::function<void()> _onInternetRestored;
     std::function<void()> _onInternetLost;
 public:
-    WifiManager(NVSManager *nvsManager, const String& ap_ssid, const String& ap_password, std::function<void()> onInternetRestored = nullptr, std::function<void()> onInternetLost = nullptr);
-    
+    WifiManager(NVSManager *nvsManager, const String& ap_ssid, std::function<void()> onInternetRestored = nullptr, std::function<void()> onInternetLost = nullptr);
+
+    // Opts the AP into WPA2 instead of the open-network default. Must be called before the AP
+    // is (re)started (i.e. before init(), or before whatever later triggers _initAPMode()) to
+    // take effect. password must be 8-63 chars (WPA2-PSK requirement) or it is rejected and the
+    // AP stays/remains open - see _initAPMode().
+    void setApPassword(const String& password) { _ap_password = password; }
+
     void init();
     void loop();
 
@@ -99,6 +108,17 @@ public:
     String getMacAddress();
     bool isConnecting() { return _connecting_time != 0; }
     bool isManaged() { return _managed; } // true if loop() is actively driving the connection
+
+    // True once AP+STA fallback has been entered this boot. It is final until reboot: loop()
+    // will not automatically retry the saved credentials while this is set, so a client must
+    // either submit new credentials (tryNewCredentials()) or reboot the device to try again.
+    bool isApStaFinal() { return _apStaFinal; }
+
+    // True if remoteIp is on the same subnet as one of this device's own interfaces (its AP
+    // subnet and/or its STA subnet). Used to restrict sensitive actions (reboot, WiFi connect,
+    // WiFi scan) to clients on the device's own local network, rather than anything that can
+    // merely route a request to it (e.g. a port-forwarded or proxied remote client).
+    bool isLocalAddress(const IPAddress& remoteIp);
 
     // Attempts to connect with new candidate credentials without touching NVS yet.
     // They're only persisted once the connection actually succeeds (see _wifiConnected());

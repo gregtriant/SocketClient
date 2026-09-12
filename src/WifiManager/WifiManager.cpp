@@ -1,12 +1,17 @@
 #include "WifiManager.h"
 #include "../Log/Log.h"
 
+#if defined(ESP32) || defined(LIBRETUYA)
+#include <lwip/dns.h>
+#elif defined(ESP8266)
+#include <lwip/dns.h>
+#endif
 
-WifiManager::WifiManager(NVSManager *nvsManager, const String& ap_ssid, const String& ap_password, std::function<void()> onInternetRestored, std::function<void()> onInternetLost)
+
+WifiManager::WifiManager(NVSManager *nvsManager, const String& ap_ssid, std::function<void()> onInternetRestored, std::function<void()> onInternetLost)
 {
     _nvsManager = nvsManager;
     _ap_ssid = ap_ssid;
-    _ap_password = ap_password;
     _onInternetRestored = onInternetRestored;
     _onInternetLost = onInternetLost;
 
@@ -70,8 +75,11 @@ void WifiManager::loop()
     // backoff_stage only ever advances once _everConnected (a later drop, not first boot) -
     // it stays 0 during the not-yet-connected/AP-fallback-grace-window cadence below, which
     // is why this same call also naturally covers that case at the 30s base interval.
+    // Once AP+STA fallback has been entered, it's final for this boot - don't automatically
+    // retry the saved credentials underneath it. A client must submit new credentials
+    // (tryNewCredentials(), via /sc/wifi/connect) or the device must be rebooted to try again.
     uint64_t retryIntervalMs = _wifiReconnectBackoffMs(_reconnect_backoff_stage);
-    if (now - _ap_time > retryIntervalMs && wifiStatus != WL_CONNECTED) { // periodic retry with saved credentials (also drives the AP-mode retry cycle)
+    if (!_apStaFinal && now - _ap_time > retryIntervalMs && wifiStatus != WL_CONNECTED) { // periodic retry with saved credentials
         _ap_time = now;
         SC_LOGI(WIFI_TAG, "Retrying connection with saved credentials...");
         init(); // connect with old credentials
@@ -140,6 +148,20 @@ void WifiManager::_connectingToWifi(String ssid, String password)
     if (WiFi.getMode() != CONST_MODE_AP_STA && WiFi.getMode() != CONST_MODE_STA) {
         WiFi.mode(WIFI_STA);
     }
+
+    // Purge lwIP's resolver cache before every connection attempt (first boot, a periodic
+    // retry, or a user submitting different credentials via /sc/wifi/connect). Diagnosed after
+    // switching this device to a different WiFi network mid-session reliably produced DNS
+    // failures afterward: lwIP's DNS cache is keyed by hostname only, with no notion of which
+    // network it was resolved on, so an entry (positive or negative) cached while on the old
+    // network can keep being served - wrongly - once the interface is on a new one, until it
+    // naturally expires. Clearing it here means every fresh connection starts with a clean
+    // resolver, network change or not. (This is also what arduino-esp32 3.x's newer
+    // NetworkManager::hostByName() does automatically on an interface IP change - this library
+    // still supports the older 2.x cores that don't do it on their own, so it's done here
+    // instead, once per connection attempt rather than tied to detecting the IP change itself.)
+    dns_clear_cache();
+
     WiFi.begin(ssid.c_str(), password.c_str());
 }
 
@@ -150,6 +172,7 @@ void WifiManager::_wifiConnected()
         SC_LOGI(WIFI_TAG, "Stopping AP+STA mode...");
         WiFi.softAPdisconnect(true);
         WiFi.mode(WIFI_STA);
+        _apStaFinal = false; // new credentials connected; AP+STA fallback is no longer in effect
     }
     _connecting_time = 0;     // Means connected.
     _connecting_attempts = 0; // Reset connecting attempts.
@@ -162,13 +185,21 @@ void WifiManager::_wifiConnected()
     }
     SC_LOGI(WIFI_TAG, "Connected to %s! IP address: %s", _wifi_ssid.c_str(), WiFi.localIP().toString().c_str());
 
-    // No DNS handling here at all, deliberately - WifiManager does not touch DNS in any way
-    // (not WiFi.config(), not esp_netif_set_dns_info(), nothing). DHCP's own DNS servers are
-    // used as-is. (Two things were tried and both reverted: WiFi.config() silently stopped DHCP
-    // lease renewal for the rest of the boot - see git history - and a narrower esp_netif-only
-    // DNS override was tried after that specifically to avoid that side effect, but the DNS
-    // failures seen on real hardware persisted regardless, pointing at the network's own DNS
-    // being broken rather than anything fixable from here.)
+    // Modem sleep (the default WiFi power-save mode) puts the radio into a low-power listen
+    // cycle between transmissions, which can drop a UDP reply that lands while the radio is
+    // asleep. Disabling it costs some power but trades away one plausible source of dropped
+    // DNS replies - kept regardless of the debug block below, since it's a reasonable trade-off
+    // for a device that's expected to stay reliably reachable either way.
+#if defined(ESP32) || defined(LIBRETUYA)
+    WiFi.setSleep(false);
+#elif defined(ESP8266)
+    WiFi.setSleepMode(WIFI_NONE_SLEEP);
+#endif
+
+    // Still not overriding which DNS *servers* get used - DHCP's own servers are used as-is.
+    // (WiFi.config() with explicit DNS args was tried at one point and reverted: it silently
+    // stopped DHCP lease renewal for the rest of the boot - see git history.) What *is* reset on
+    // every fresh connection attempt is the resolver's cache state - see _connectingToWifi().
 
     _local_ip = WiFi.localIP().toString();
     _wifi_status = WiFi.status();
@@ -194,13 +225,26 @@ void WifiManager::_initAPMode()
     IPAddress subnet(255, 255, 255, 0);
     WiFi.softAPConfig(apIP, apIP, subnet);
 
-    SC_LOGI(WIFI_TAG, "AP ssid: %s", _ap_ssid.c_str());
-    SC_LOGI(WIFI_TAG, "AP pass: %s", _ap_password.c_str());
-    WiFi.softAP(_ap_ssid, _ap_password); // AP name and password
+    // WPA2-PSK requires an 8-63 char password; anything outside that range is rejected by
+    // softAP() anyway, so fall back to open rather than risk an unreachable/broken AP.
+    bool usePassword = _ap_password.length() >= 8 && _ap_password.length() <= 63;
+    if (usePassword) {
+        SC_LOGI(WIFI_TAG, "AP ssid: %s (password-protected)", _ap_ssid.c_str());
+        WiFi.softAP(_ap_ssid, _ap_password);
+    } else {
+        if (_ap_password.length() > 0) {
+            SC_LOGW(WIFI_TAG, "AP password must be 8-63 chars; ignoring and starting an open AP.");
+        }
+        SC_LOGI(WIFI_TAG, "AP ssid: %s (open network)", _ap_ssid.c_str());
+        WiFi.softAP(_ap_ssid); // open network - no password, so provisioning is always reachable
+    }
 
     SC_LOGI(WIFI_TAG, "Starting AP+STA mode... IP: %s", WiFi.softAPIP().toString().c_str());
 
     _ap_time = millis();
+    // Final for this boot: loop() will not auto-retry saved credentials while this is set (see
+    // the retryIntervalMs gate above) - only new credentials or a reboot can leave AP+STA mode.
+    _apStaFinal = true;
 }
 
 
@@ -274,6 +318,32 @@ bool WifiManager::tryAndSaveCredentials(String ssid, String password, unsigned l
     return connected;
 }
 
+
+// Compares network portions only (ip & mask), byte by byte - IPAddress has no bitwise operators
+// on this platform's Arduino core.
+static bool _sameSubnet(const IPAddress& a, const IPAddress& b, const IPAddress& mask)
+{
+    for (int i = 0; i < 4; i++) {
+        if ((a[i] & mask[i]) != (b[i] & mask[i])) return false;
+    }
+    return true;
+}
+
+bool WifiManager::isLocalAddress(const IPAddress& remoteIp)
+{
+    if (WiFi.getMode() == CONST_MODE_AP_STA) {
+        // Fixed subnet configured in _initAPMode() (192.168.4.1/255.255.255.0).
+        IPAddress apIp(192, 168, 4, 1);
+        IPAddress apMask(255, 255, 255, 0);
+        if (_sameSubnet(remoteIp, apIp, apMask)) return true;
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+        if (_sameSubnet(remoteIp, WiFi.localIP(), WiFi.subnetMask())) return true;
+    }
+
+    return false;
+}
 
 String WifiManager::getIP()
 {

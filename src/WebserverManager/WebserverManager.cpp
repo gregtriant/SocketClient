@@ -25,11 +25,21 @@ WebserverManager::WebserverManager(int port, WifiManager *wifiManager, DeviceInf
 #include "pages/upload_html.h"
 #include "pages/wifi_html.h"
 
+bool WebserverManager::_isLocalRequest(AsyncWebServerRequest *request)
+{
+    if (_wifiManager == nullptr) return false; // fail closed - can't verify, so deny
+    return _wifiManager->isLocalAddress(request->client()->remoteIP());
+}
+
 void WebserverManager::_setupWebServer()
 {
     // Connect to Wifi form submission.
     _server.on("/sc/wifi/connect", HTTP_POST, [this](AsyncWebServerRequest *request)
         {
+            if (!this->_isLocalRequest(request)) {
+                request->send(403, "text/plain", "Forbidden: local network only");
+                return;
+            }
             this->_handleWifiConnect(request);
         });
 
@@ -48,6 +58,10 @@ void WebserverManager::_setupWebServer()
 
     _server.on("/sc/reboot", HTTP_POST, [this](AsyncWebServerRequest *request)
         {
+            if (!this->_isLocalRequest(request)) {
+                request->send(403, "text/plain", "Forbidden: local network only");
+                return;
+            }
             request->send(200, "text/plain", "Rebooting...");
             SC_LOGD(SERVER_TAG, "Rebooting...");
             ESP.restart();
@@ -97,6 +111,10 @@ void WebserverManager::_setupWebServer()
 
     _server.on("/sc/wifi/scan", HTTP_GET, [this](AsyncWebServerRequest *request)
         {
+            if (!this->_isLocalRequest(request)) {
+                request->send(403, "application/json", "[]");
+                return;
+            }
             int16_t n = WiFi.scanComplete();
             if (n == WIFI_SCAN_FAILED) {
                 if (_wifiManager && _wifiManager->isConnecting()) {

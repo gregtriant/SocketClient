@@ -67,6 +67,7 @@ class SocketClient {
     const char *_deviceType = DEVICE_TYPE;
 
     const char *_token = "";
+    const char *_apPassword = nullptr; // nullptr/empty = open AP; see setPasswordAP()
     const char *_socketHostURL = DEFAULT_HOST;
     int _port = DEFAULT_PORT;
     bool _isSSL;
@@ -109,6 +110,16 @@ class SocketClient {
                                                                 //  attempt (see watchdog()) up to the cap below
     static const unsigned long max_reconnect_time = 180000L;  //- 3 min cap
     static const unsigned long watchdog_time = (5 * tick_time);      //- 30 s; must be > heartbeat interval (15 s)
+
+    // WifiManager's _onInternetRestored fires the instant WL_CONNECTED lands, which can be too
+    // soon for hostByName() to succeed yet (DHCP-assigned DNS servers still settling, radio
+    // waking from power-save, etc. - see WiFiGeneric.cpp's "DNS Failed" log). Rather than
+    // resolving the socket host synchronously inside that callback, it just schedules a
+    // reconnect() this many ms out; loop() fires it once the deadline passes. 0/false = none
+    // pending.
+    static const unsigned long WIFI_RECONNECT_GRACE_MS = 1500;
+    bool _pendingWifiReconnect = false;
+    unsigned long _pendingWifiReconnectAt = 0;
 
 public:
     SocketClient();
@@ -168,6 +179,11 @@ public:
     void setConnectedFunction(ConnectedFunction func) { this->connected = func; }
 
     void setToken(const char *token) { this->_token = token; }
+
+    // Opts the AP into WPA2 instead of the default open network. Must be called before init()
+    // (like setToken()); password must be 8-63 chars (WPA2-PSK requirement) or it is ignored
+    // and the AP stays open - see WifiManager::setApPassword().
+    void setPasswordAP(const char *password) { this->_apPassword = password; }
 
     void initWebserver(int port = 80);
 

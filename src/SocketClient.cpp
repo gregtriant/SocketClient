@@ -14,6 +14,7 @@
 #endif
 
 #ifdef ESP32
+#include <esp_idf_version.h>
 #include <esp_task_wdt.h>
 #endif
 
@@ -442,7 +443,27 @@ void SocketClient::_init() {
     // Initialize hardware watchdog (ESP32 only); safe to call multiple times — reinit just updates timeout
     // 900s (15 min) timeout; if sc.loop() stops running, hardware WDT reboots after 15 min as ultimate safety net
 #ifdef ESP32
+    // esp_task_wdt_init() dropped its (timeout_ms, panic) overload for a config-struct
+    // argument in ESP-IDF 5.0 (arduino-esp32 3.x); ESP_IDF_VERSION lets this compile against
+    // both that and the older 4.x-based cores (arduino-esp32 2.x) this library still supports.
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    esp_task_wdt_config_t twdt_config = {
+        .timeout_ms = 600000,  // 600s (10 min); reinit is safe, just updates config
+        .idle_core_mask = 0,
+        .trigger_panic = true,
+    };
+    // arduino-esp32 3.x auto-initializes the TWDT at startup with a short default timeout, so
+    // esp_task_wdt_init() here fails with ESP_ERR_INVALID_STATE ("already initialized") instead
+    // of applying ours. Left unhandled, that short default timeout stays active and panics the
+    // device the first time loop() does anything that takes more than a few seconds (e.g. a
+    // slow WiFiClientSecure connect in reconnect()) - esp_task_wdt_reconfigure() is the IDF5
+    // call to change an already-running TWDT's config instead.
+    if (esp_task_wdt_init(&twdt_config) == ESP_ERR_INVALID_STATE) {
+        esp_task_wdt_reconfigure(&twdt_config);
+    }
+#else
     esp_task_wdt_init(600, true);  // 600s (10 min); reinit is safe, just updates config
+#endif
     esp_task_wdt_add(NULL);        // subscribe current task; returns ESP_ERR_INVALID_ARG if already subscribed (harmless)
 #endif
 
@@ -460,10 +481,16 @@ void SocketClient::_init() {
     // that turns handleWifi on). Only actually takes over the connection (auto-reconnect,
     // AP-mode fallback) when handleWifi is true.
     String ap_ssid = String(_deviceType) + "-" + String(_deviceApp);
-    String ap_password = String(_token).substring(String(_token).length() - 10);
-    _wifiManager = new WifiManager(_nvsManager, ap_ssid, ap_password,
-        [this]() { this->reconnect(); },
+    _wifiManager = new WifiManager(_nvsManager, ap_ssid,
+        [this]() {
+            // Don't resolve the socket host synchronously here - see WIFI_RECONNECT_GRACE_MS.
+            this->_pendingWifiReconnect = true;
+            this->_pendingWifiReconnectAt = millis() + WIFI_RECONNECT_GRACE_MS;
+        },
         [this]() { this->stopReconnect(); });
+    if (_apPassword != nullptr) {
+        _wifiManager->setApPassword(_apPassword);
+    }
     if (_handleWifi) {
         _wifiManager->init();
     }
@@ -524,6 +551,10 @@ void SocketClient::loop() {
     // WifiManager's loop() drives auto-reconnect/AP-mode fallback; only run it when it actually
     // owns the connection. Otherwise it stays passive, only used on-demand via /sc/wifi/connect.
     if (_wifiManager && _handleWifi) _wifiManager->loop();
+    if (_pendingWifiReconnect && millis() >= _pendingWifiReconnectAt) {
+        _pendingWifiReconnect = false;
+        reconnect();
+    }
     if (_webserverManager) _webserverManager->loop();
     if (_webSocket) _webSocket->loop();
     if (_diagnostics) _diagnostics->loop();

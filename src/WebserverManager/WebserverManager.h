@@ -28,6 +28,11 @@ protected:
     AsyncWebServer _server;
 
     void _setupWebServer();
+    // Restricts reboot, WiFi connect and WiFi scan to clients on the device's own local
+    // network (see WifiManager::isLocalAddress) - a device that can merely route a request to
+    // this server (e.g. via port forwarding or a proxy) must not be able to reboot it, change
+    // its WiFi credentials or trigger a scan. Fails closed (denies) if WifiManager is unavailable.
+    bool _isLocalRequest(AsyncWebServerRequest *request);
     void _handleRoot(AsyncWebServerRequest *request);
     void _sendPage(AsyncWebServerRequest *request);
     void _sendRebootPage(AsyncWebServerRequest *request);

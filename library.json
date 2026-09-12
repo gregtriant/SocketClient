@@ -1,5 +1,5 @@
 {
-    "version": "1.8.4",
+    "version": "1.8.11",
     "name": "SocketClient",
     "description": "WebSocket client for Sensordata.space",
     "repository": {
@@ -38,10 +38,10 @@
             "version": "^7.4.3",
             "platforms": [ "espressif32", "espressif8266" ]
         },
-        { 
-            "name": "ESPAsyncWebServer-esphome",
-            "owner": "esphome",
-            "version": "^3.4.0",
+        {
+            "name": "ESPAsyncWebServer",
+            "owner": "ESP32Async",
+            "version": "^3.12.0",
             "platforms": [ "espressif32", "espressif8266" ]
         },
         {

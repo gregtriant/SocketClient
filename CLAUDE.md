@@ -29,7 +29,9 @@ When `config.handleWifi = true`, SocketClient owns the full WiFi lifecycle:
 
 When `handleWifi = false`, these managers are not instantiated and the consumer is responsible for WiFi. The library reads `WiFi.macAddress()` and `WiFi.localIP()` directly regardless.
 
-The AP SSID is `deviceType-deviceApp` and the AP password is the last 10 characters of the token. The WiFi hostname is also set to `deviceType-deviceApp`.
+The AP SSID is `deviceType-deviceApp` and the AP is an open network (no password) by default. A consumer can opt into a WPA2 password via `SocketClient::setPasswordAP(const char*)` (called before `init()`, like `setToken()`), which is passed down to `WifiManager::setApPassword()`; passwords outside the WPA2-PSK 8-63 char range are rejected and the AP falls back to open. The WiFi hostname is also set to `deviceType-deviceApp`.
+
+AP+STA fallback is final for the boot: once `WifiManager` falls back to AP+STA mode, it will not automatically retry the saved credentials underneath it (`WifiManager::isApStaFinal()`). The only ways out are a client submitting new credentials via `/sc/wifi/connect`, or a reboot. Reboot, WiFi connect, and WiFi scan are restricted to clients on the device's own local network (`WifiManager::isLocalAddress()`, enforced in `WebserverManager`) so a request that merely gets routed to the device (e.g. via port forwarding) can't perform them.
 
 ### Message Protocol
 All messages are JSON over WebSocket. Key message types:
@@ -43,6 +45,10 @@ All messages are JSON over WebSocket. Key message types:
 
 ### Reconnection Strategy
 WebSocketsClient handles basic reconnection (5s interval, heartbeat). The library also has a manual reconnect path (`reconnect()`) with exponential backoff up to 10 minutes, and `stopReconnect()` which sets intervals to `MAX_ULONG` to effectively disable reconnection.
+
+`WifiManager::_wifiConnected()` disables WiFi modem sleep (`WiFi.setSleep(false)` on ESP32/LibreTuya, `WiFi.setSleepMode(WIFI_NONE_SLEEP)` on ESP8266) every time WiFi connects - a reasonable reliability trade-off regardless (modem sleep's low-power listen cycle can drop a UDP reply while the radio is asleep), though it turned out not to be the cause of the persistent `hostByName()`/`DNS Failed` errors this was chasing down (reproduced on both old and new arduino-esp32 cores alike).
+
+`WifiManager::_connectingToWifi()` calls `dns_clear_cache()` (lwIP, `<lwip/dns.h>`) immediately before every `WiFi.begin()` - first boot, a periodic retry, or a user submitting new credentials via `/sc/wifi/connect`. Root cause of the DNS failures above: lwIP's resolver cache is keyed by hostname only, with no notion of which network a result was resolved on, so switching to a different WiFi network mid-session left it serving a cached entry (or a cached failure) from the *previous* network. arduino-esp32 3.x's newer `NetworkManager::hostByName()` already clears this cache automatically on an interface IP change; this library still supports the older 2.x cores that don't, so it's done explicitly here instead - unconditionally per connection attempt rather than trying to detect the IP change itself.
 
 ### Platform Abstraction
 `SocketClientDefs.h` uses `#if defined(ESP32) || defined(LIBRETUYA)` / `#elif defined(ESP8266)` throughout for platform-specific WiFi, HTTP, and server APIs. LibreTuya boards follow the ESP32 code path.

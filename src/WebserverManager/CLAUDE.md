@@ -6,15 +6,15 @@
 |------|--------|---------|-------|
 | `/sc/` | GET | `_sendPage` | Main nav hub |
 | `/sc/reboot` | GET | `_sendRebootPage` | Reboot confirm page |
-| `/sc/reboot` | POST | inline lambda | Calls `ESP.restart()` |
+| `/sc/reboot` | POST | inline lambda | Local-network only; calls `ESP.restart()` |
 | `/sc/wifi` | GET | `_sendWifiPage` | WiFi config page |
-| `/sc/wifi/connect` | POST | `_handleWifiConnect` | Saves credentials + calls `_wifiManager->init()` |
+| `/sc/wifi/connect` | POST | `_handleWifiConnect` | Local-network only; saves credentials + calls `_wifiManager->init()` |
 | `/sc/wifi/disconnect` | GET | inline lambda | Calls `WiFi.disconnect(true)` |
 | `/sc/upload` | GET | `_sendUploadPage` | OTA firmware upload page |
 | `/sc/upload` | POST | inline lambdas | Streams firmware via `Update` API; reboots on success |
 | `/sc/info` | GET | inline lambda | Returns JSON: product, version, device, heap, ssid, rssi |
 | `/sc/status` | GET | inline lambda | Returns JSON from `_getCurrentStatus` callback |
-| `/sc/wifi/scan` | GET | inline lambda | Async WiFi scan — see below |
+| `/sc/wifi/scan` | GET | inline lambda | Local-network only; async WiFi scan — see below |
 | `/sc/style.css` | GET | inline lambda | Shared CSS for all pages; served with `Cache-Control: max-age=3600` |
 
 ## IMPORTANT: Route Registration Order
@@ -60,3 +60,7 @@ Reboot and upload pages share the same UX pattern:
 ## WiFi Page Connect
 
 `doConnect()` sends a `fetch` POST to `/sc/wifi/connect` with `Content-Type: application/x-www-form-urlencoded` and URL-encoded `ssid=...&password=...` body. `_handleWifiConnect` reads params with `request->getParam("ssid", true)` (the `true` flag means POST body param).
+
+## Local-Network-Only Routes
+
+`/sc/reboot` (POST), `/sc/wifi/connect` (POST), and `/sc/wifi/scan` (GET) are gated by `_isLocalRequest()`, which fails closed (denies) if `_wifiManager` is null and otherwise delegates to `WifiManager::isLocalAddress(remoteIp)` — true only if the request's source IP shares a subnet with one of the device's own interfaces (its AP subnet, 192.168.4.0/24, and/or its connected STA subnet). This blocks a request that is merely routed to the device (e.g. port forwarding, a reverse proxy) from rebooting it, changing its WiFi credentials, or triggering a scan, even though the HTTP handler itself is reachable. A denied request gets `403` (empty JSON array for `/sc/wifi/scan`, so the polling page's parsing doesn't break).
