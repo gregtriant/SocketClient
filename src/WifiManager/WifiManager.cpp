@@ -318,33 +318,6 @@ bool WifiManager::tryAndSaveCredentials(String ssid, String password, unsigned l
     return connected;
 }
 
-
-// Compares network portions only (ip & mask), byte by byte - IPAddress has no bitwise operators
-// on this platform's Arduino core.
-static bool _sameSubnet(const IPAddress& a, const IPAddress& b, const IPAddress& mask)
-{
-    for (int i = 0; i < 4; i++) {
-        if ((a[i] & mask[i]) != (b[i] & mask[i])) return false;
-    }
-    return true;
-}
-
-bool WifiManager::isLocalAddress(const IPAddress& remoteIp)
-{
-    if (WiFi.getMode() == CONST_MODE_AP_STA) {
-        // Fixed subnet configured in _initAPMode() (192.168.4.1/255.255.255.0).
-        IPAddress apIp(192, 168, 4, 1);
-        IPAddress apMask(255, 255, 255, 0);
-        if (_sameSubnet(remoteIp, apIp, apMask)) return true;
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-        if (_sameSubnet(remoteIp, WiFi.localIP(), WiFi.subnetMask())) return true;
-    }
-
-    return false;
-}
-
 String WifiManager::getIP()
 {
     return _local_ip;

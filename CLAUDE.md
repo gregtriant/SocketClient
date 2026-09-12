@@ -31,7 +31,7 @@ When `handleWifi = false`, these managers are not instantiated and the consumer 
 
 The AP SSID is `deviceType-deviceApp` and the AP is an open network (no password) by default. A consumer can opt into a WPA2 password via `SocketClient::setPasswordAP(const char*)` (called before `init()`, like `setToken()`), which is passed down to `WifiManager::setApPassword()`; passwords outside the WPA2-PSK 8-63 char range are rejected and the AP falls back to open. The WiFi hostname is also set to `deviceType-deviceApp`.
 
-AP+STA fallback is final for the boot: once `WifiManager` falls back to AP+STA mode, it will not automatically retry the saved credentials underneath it (`WifiManager::isApStaFinal()`). The only ways out are a client submitting new credentials via `/sc/wifi/connect`, or a reboot. Reboot, WiFi connect, and WiFi scan are restricted to clients on the device's own local network (`WifiManager::isLocalAddress()`, enforced in `WebserverManager`) so a request that merely gets routed to the device (e.g. via port forwarding) can't perform them.
+AP+STA fallback is final for the boot: once `WifiManager` falls back to AP+STA mode, it will not automatically retry the saved credentials underneath it (`WifiManager::isApStaFinal()`). The only ways out are a client submitting new credentials via `/sc/wifi/connect`, or a reboot.
 
 ### Message Protocol
 All messages are JSON over WebSocket. Key message types:

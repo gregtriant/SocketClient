@@ -114,12 +114,6 @@ public:
     // either submit new credentials (tryNewCredentials()) or reboot the device to try again.
     bool isApStaFinal() { return _apStaFinal; }
 
-    // True if remoteIp is on the same subnet as one of this device's own interfaces (its AP
-    // subnet and/or its STA subnet). Used to restrict sensitive actions (reboot, WiFi connect,
-    // WiFi scan) to clients on the device's own local network, rather than anything that can
-    // merely route a request to it (e.g. a port-forwarded or proxied remote client).
-    bool isLocalAddress(const IPAddress& remoteIp);
-
     // Attempts to connect with new candidate credentials without touching NVS yet.
     // They're only persisted once the connection actually succeeds (see _wifiConnected());
     // on failure the currently saved credentials are restored, untouched.
