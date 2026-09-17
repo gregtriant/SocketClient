@@ -28,6 +28,16 @@ protected:
     AsyncWebServer _server;
 
     void _setupWebServer();
+
+    // True once the network stack's tcpip task is safe to touch (AsyncWebServer::begin() calls
+    // into lwIP and asserts - "Invalid mbox" - if that task isn't running yet). Driven by
+    // WiFi.getMode() rather than _wifiManager's own state so it's correct regardless of who
+    // brought WiFi up: SocketClient's own WifiManager (handleWifi=true), external code
+    // (handleWifi=false), or AP+STA fallback with no real internet connection at all - the
+    // /sc/wifi/connect provisioning page must be reachable in that last case too, so this
+    // deliberately does NOT wait for an actual STA connection/IP.
+    bool _networkStackReady();
+    void _tryBeginServer();
     void _handleRoot(AsyncWebServerRequest *request);
     void _sendPage(AsyncWebServerRequest *request);
     void _sendRebootPage(AsyncWebServerRequest *request);

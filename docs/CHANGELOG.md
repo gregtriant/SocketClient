@@ -1,5 +1,20 @@
 # Changelog for Socket Client library
 
+## [1.8.13] - 2026-09-17
+
+### Fixed
+
+- `WebserverManager`'s constructor called `AsyncWebServer::begin()` synchronously, which touches
+  lwIP and needs the tcpip task's mailbox to already exist. Since `SocketClient::initWebserver()`
+  is commonly called before `SocketClient::init()` brings up WiFi, this raced against the network
+  stack's own startup and could crash with `assert failed: tcpip_api_call ... (Invalid mbox)` -
+  deterministically, on boards/timings where the stack hadn't finished initializing yet.
+  `begin()` is now deferred until `WiFi.getMode() != WIFI_MODE_NULL` (i.e. the stack is up),
+  checked inline at construction and then polled from `loop()`; it still runs at most once. This
+  is deliberately based on the radio mode having been set at all rather than an actual STA
+  connection, so AP+STA fallback's `/sc/wifi/connect` provisioning page stays reachable with no
+  real WiFi connection yet.
+
 ## [1.8.12] - 2026-09-17
 
 ### Fixed

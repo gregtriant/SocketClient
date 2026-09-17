@@ -12,7 +12,24 @@ WebserverManager::WebserverManager(int port, WifiManager *wifiManager, DeviceInf
   _wifiManager = wifiManager;
   _getCurrentStatus = getCurrentStatus;
   _deviceInfo = deviceInfo;
-  _setupWebServer();
+  _setupWebServer();     // just registers routes - no lwIP calls, safe before the network stack exists
+  _tryBeginServer();     // begin() inline if the network stack is already up; loop() catches it otherwise
+}
+
+
+bool WebserverManager::_networkStackReady()
+{
+#if defined(ESP32) || defined(LIBRETUYA)
+    return WiFi.getMode() != WIFI_MODE_NULL;
+#elif defined(ESP8266)
+    return WiFi.getMode() != WIFI_OFF;
+#endif
+}
+
+
+void WebserverManager::_tryBeginServer()
+{
+  if (_started || !_networkStackReady()) return;
   _server.begin();
   _started = true;
   SC_LOGD(SERVER_TAG, "Webserver started");
@@ -291,4 +308,5 @@ void WebserverManager::_handleWifiConnect(AsyncWebServerRequest *request)
 
 void WebserverManager::loop()
 {
+  if (!_started) _tryBeginServer();
 }
