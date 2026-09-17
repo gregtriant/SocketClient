@@ -181,7 +181,14 @@ void WifiManager::_wifiConnected()
     if (_pending_save) {
         _pending_save = false;
         _nvsManager->saveWifiCredentials(_wifi_ssid, _wifi_password);
-        SC_LOGI(WIFI_TAG, "New WiFi credentials saved.");
+        SC_LOGI(WIFI_TAG, "New WiFi credentials saved. Rebooting to apply cleanly...");
+        // A live AP+STA -> STA transition mid-runtime is more fragile than just starting the
+        // whole app fresh with the newly-saved credentials already in NVS (normal boot then goes
+        // straight through _connectingToWifi(), no mode switch needed) - and every other piece of
+        // app state (BLE, ESP-NOW, etc.) that assumed AP+STA was up gets a clean restart too.
+        delay(300); // let the log line above actually reach the serial console before restart
+        ESP.restart();
+        return; // unreachable, kept for clarity
     }
     SC_LOGI(WIFI_TAG, "Connected to %s! IP address: %s", _wifi_ssid.c_str(), WiFi.localIP().toString().c_str());
 

@@ -1,5 +1,5 @@
 {
-    "version": "1.8.11",
+    "version": "1.8.12",
     "name": "SocketClient",
     "description": "WebSocket client for Sensordata.space",
     "repository": {

@@ -276,8 +276,15 @@ void WebserverManager::_handleWifiConnect(AsyncWebServerRequest *request)
         // save to NVS if it actually connects.
         bool connected = _wifiManager->tryAndSaveCredentials(ssid, password);
         request->send(200, "text/plain", connected
-            ? "Connected and credentials saved."
+            ? "Connected and credentials saved. Rebooting..."
             : "Could not connect with those credentials; nothing was saved.");
+        if (connected) {
+            // Same reasoning as the managed path in WifiManager::_wifiConnected(): reboot into a
+            // clean state with the new credentials already in NVS, rather than continuing this
+            // run. Response is sent above first so the client actually sees the confirmation.
+            delay(300);
+            ESP.restart();
+        }
     }
 }
 

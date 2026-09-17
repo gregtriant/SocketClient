@@ -1,5 +1,28 @@
 # Changelog for Socket Client library
 
+## [1.8.12] - 2026-09-17
+
+### Fixed
+
+- Reconnect storm: the WebSocket connected handler reset `last_reconnect` to `0` instead of
+  `millis()`, and `watchdog()` treats `0` as "never attempted, skip all backoff" — so a
+  disconnect shortly after a successful connect bypassed the 30s+ backoff entirely, producing a
+  zero-delay reconnect loop.
+- `WebserverManager` permanently held a null `WifiManager` if `SocketClient::initWebserver()`
+  was called before `SocketClient::init()` (a supported call order), making `/sc/wifi/connect`
+  always fail with `"WiFi management not enabled"`. `WebserverManager` now exposes
+  `setWifiManager()`, called from `init()` right after the real `WifiManager` is constructed.
+
+### Changed
+
+- Saving new WiFi credentials via `/sc/wifi/connect` (both the managed and unmanaged paths) now
+  reboots the device via `ESP.restart()` after saving, instead of attempting a live AP+STA → STA
+  transition mid-runtime — found more reliable on real hardware, and gives other app state a
+  clean restart too.
+
+Backported from the ESP-IDF port (`SocketClient32`), where these were diagnosed and fixed on
+real hardware first.
+
 ## [1.8.0] - 2026-08-22
 
 ### Added

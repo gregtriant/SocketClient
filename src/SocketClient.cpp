@@ -350,7 +350,15 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
             globalSC->_doc["token"] = globalSC->_token;
             String JsonToSend = "";
             serializeJson(globalSC->_doc, JsonToSend);
-            globalSC->last_reconnect = 0;
+            // NOT 0: last_reconnect == 0 is watchdog()'s "never attempted, skip all backoff"
+            // sentinel. Setting it to 0 here (as this used to do) meant any disconnect shortly
+            // after a successful connect - a flaky network, a server hiccup, or (as diagnosed on
+            // real hardware) a consumer app disrupting the STA link right after connect - caused
+            // an immediate, zero-delay reconnect instead of the intended 30s+ baseline, turning a
+            // one-off disruption into a self-sustaining reconnect storm. millis() here still
+            // resets reconnect_time to the 30s baseline below (the desired "fresh success drops
+            // the backoff multiplier" behavior) without also bypassing the backoff delay itself.
+            globalSC->last_reconnect = millis();
             globalSC->reconnect_time = 30000;
             bool result = globalSC->_webSocket->sendTXT(JsonToSend);
             if (result) {
@@ -491,6 +499,9 @@ void SocketClient::_init() {
     if (_apPassword != nullptr) {
         _wifiManager->setApPassword(_apPassword);
     }
+    // initWebserver() may have been called before init() (its constructor would then have
+    // captured a still-null _wifiManager) - push the real one in now regardless of call order.
+    if (_webserverManager) _webserverManager->setWifiManager(_wifiManager);
     if (_handleWifi) {
         _wifiManager->init();
     }

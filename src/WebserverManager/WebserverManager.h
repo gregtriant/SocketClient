@@ -44,4 +44,10 @@ public:
     void loop();
 
     AsyncWebServer* getServer() { return &_server; }
+
+    // SocketClient::initWebserver() can be (and is, in practice) called before SocketClient::init()
+    // - at that point SocketClient's own WifiManager doesn't exist yet, so the constructor above
+    // captures a null _wifiManager. SocketClient::init() calls this right after it creates the
+    // real WifiManager, so /sc/wifi/connect etc. work regardless of call order.
+    void setWifiManager(WifiManager *wifiManager) { _wifiManager = wifiManager; }
 };
