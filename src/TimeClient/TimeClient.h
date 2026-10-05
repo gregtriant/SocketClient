@@ -10,6 +10,7 @@ public:
         update_interval = upd;  //- once a day is more than enough..
     }
     void begin(const char *TZ);
+    void setTZ(const char *TZ);   // timezone & DST rules only (POSIX TZ string), no NTP
     void loop();
     bool hasTime();
     bool getTime(int &hh, int &mm, int &ss);

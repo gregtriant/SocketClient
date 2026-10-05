@@ -232,19 +232,33 @@ bool SocketClient::hasTime(){
     return _tc.hasTime();
 }
 
+void SocketClient::setTZ(const char *tz, bool pin) {
+    if (tz && tz[0]) {
+        _local_time_zone = tz;
+        _tz_pinned = pin;
+    } else {
+        _tz_pinned = false;
+        if (_server_time_zone.isEmpty()) return;  // nothing to go back to yet
+        _local_time_zone = _server_time_zone;
+    }
+    _tc.setTZ(_local_time_zone.c_str());
+}
+
 void SocketClient::gotMessageSocket(uint8_t *payload) {
     SC_LOGD(WS_TAG, "Got data: %s", payload);
     deserializeJson(_doc, payload);
     if (strcmp(_doc["message"], "connected") == 0) {
         // Get the Time first before the JSON gets cleared.
-        if (!_doc["time"].isNull()) {
-            String tz = _doc["time"]["timezone"];
-            if (!tz.isEmpty()) {
-                _local_time_zone = tz;
-                _tc.begin(_local_time_zone.c_str());
-            } else {
-                SC_LOGE(WS_TAG, "Timezone missing or invalid!");
-            }
+        // A timezone set with setTZ() stays in effect; the server's is still remembered.
+        const char *tz = _doc["time"]["timezone"] | "";
+        if (tz[0]) {
+            _server_time_zone = tz;
+            if (!_tz_pinned) _local_time_zone = tz;
+        }
+        if (!_local_time_zone.isEmpty()) {
+            _tc.begin(_local_time_zone.c_str());
+        } else if (!_doc["time"].isNull()) {
+            SC_LOGE(WS_TAG, "Timezone missing or invalid!");
         }
 
         // Read debug config sent by the server on connect.

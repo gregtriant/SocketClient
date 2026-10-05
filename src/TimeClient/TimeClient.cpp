@@ -10,11 +10,14 @@ void TimeClient::begin(const char *TZ){
   ntpClient.begin();
   ntpClient.forceUpdate();
   syncSystemClock();
+  setTZ(TZ);
+}
 
+void TimeClient::setTZ(const char *TZ){
   // 🌍 Apply timezone & DST rules
   setenv("TZ", TZ, 1);
   tzset();
-} 
+}
 
 void TimeClient::syncSystemClock() {
   ntpClient.update();

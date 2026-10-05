@@ -81,7 +81,9 @@ class SocketClient {
     uint64_t _led_blink_time = 0;  // used to turn led on and off
 
     uint32_t _local_time_offset = 0;
-    String _local_time_zone = "";
+    String _local_time_zone = "";   // timezone in effect
+    String _server_time_zone = "";  // last timezone the server sent
+    bool _tz_pinned = false;        // set by setTZ(): the server's timezone doesn't replace it
 
     SendStatusFunction sendStatus;
     ReceivedCommandFunction receivedCommand;
@@ -192,5 +194,15 @@ public:
     bool hasTime();
     bool getTime(int &hh, int &mm, int &ss) { return _tc.getTime(hh, mm, ss); }
     bool getDate(int &yy, int &mm, int &dd) { return _tc.getDate(yy, mm, dd); }
+
+    // Sets the local timezone (POSIX TZ string, e.g. "EET-2EEST,M3.5.0/3,M10.5.0/4") right
+    // away - no NTP involved, so it works before init() and without the server. With pin
+    // (default) the timezone the server sends on "connected" no longer replaces it; without,
+    // it only holds until the server sends one (e.g. an app restoring a saved value at boot).
+    // nullptr/"" unpins and goes back to the server's timezone if one was received.
+    // Call from the thread that runs loop().
+    void setTZ(const char *tz, bool pin = true);
+    const char *getTZ() const { return _local_time_zone.c_str(); }         // in effect, "" if none
+    const char *getServerTZ() const { return _server_time_zone.c_str(); }  // "" until received
 };
 
