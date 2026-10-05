@@ -43,6 +43,8 @@
 #include "TimeClient/TimeClient.h"
 #include "Diagnostics/Diagnostics.h"
 
+#define SC_TZ_LEN 48  // POSIX TZ string incl. terminator
+
 class WifiManager;
 class WebserverManager;
 /**
@@ -81,9 +83,16 @@ class SocketClient {
     uint64_t _led_blink_time = 0;  // used to turn led on and off
 
     uint32_t _local_time_offset = 0;
-    String _local_time_zone = "";   // timezone in effect
-    String _server_time_zone = "";  // last timezone the server sent
-    bool _tz_pinned = false;        // set by setTZ(): the server's timezone doesn't replace it
+    // Timezone (POSIX TZ strings), persisted in NVS so local time is right from boot. The one
+    // in effect is _tz_set if there is one, else _tz_srv. Fixed buffers: setTZ()/getTZ(buf)
+    // may be called from another task, the apply + NVS write happen in loop() (_tzFlush()).
+    char _tz_set[SC_TZ_LEN] = "";   // set with setTZ(tz, true): wins over the server's
+    char _tz_srv[SC_TZ_LEN] = "";   // last timezone the server sent (or setTZ(tz, false))
+    bool _tz_apply = false;         // zone in effect changed, not applied yet
+    bool _tz_save_set = false;      // _tz_set changed, not written to NVS yet
+    bool _tz_save_srv = false;      // same for _tz_srv
+    void _tzLoad();
+    void _tzFlush();
 
     SendStatusFunction sendStatus;
     ReceivedCommandFunction receivedCommand;
@@ -195,14 +204,20 @@ public:
     bool getTime(int &hh, int &mm, int &ss) { return _tc.getTime(hh, mm, ss); }
     bool getDate(int &yy, int &mm, int &dd) { return _tc.getDate(yy, mm, dd); }
 
-    // Sets the local timezone (POSIX TZ string, e.g. "EET-2EEST,M3.5.0/3,M10.5.0/4") right
-    // away - no NTP involved, so it works before init() and without the server. With pin
-    // (default) the timezone the server sends on "connected" no longer replaces it; without,
-    // it only holds until the server sends one (e.g. an app restoring a saved value at boot).
-    // nullptr/"" unpins and goes back to the server's timezone if one was received.
-    // Call from the thread that runs loop().
-    void setTZ(const char *tz, bool pin = true);
-    const char *getTZ() const { return _local_time_zone.c_str(); }         // in effect, "" if none
-    const char *getServerTZ() const { return _server_time_zone.c_str(); }  // "" until received
+    // The timezone is SocketClient's: the last one the server sent is saved in NVS and put in
+    // effect by init(), so local time is right before (or without) the server - only NTP
+    // still needs the "connected" reply. setTZ() overrides it with a POSIX TZ string, e.g.
+    // "EET-2EEST,M3.5.0/3,M10.5.0/4"; false if it isn't shaped like one. With keep (default)
+    // it is saved and wins over whatever the server sends; without, it only stands in for the
+    // server's value until the server sends one. nullptr/"" drops the kept one and follows
+    // the server again. Callable from any task: getTZ(buf)/isTZPinned() reflect it at once,
+    // the zone is applied and saved by the next loop().
+    bool setTZ(const char *tz, bool keep = true);
+    bool getTZ(char *buf, size_t n, bool *pinned = nullptr);  // in effect; false if none. Any task
+    bool isTZPinned() const { return _tz_set[0] != '\0'; }    // true: set with setTZ(tz, true)
+    static bool validTZ(const char *tz);
+    // loop() thread only:
+    const char *getTZ() const { return _tz_set[0] ? _tz_set : _tz_srv; }  // in effect, "" if none
+    const char *getServerTZ() const { return _tz_srv; }                   // "" if never received
 };
 

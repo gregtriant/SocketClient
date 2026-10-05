@@ -130,16 +130,22 @@ bool hasTime();
 bool getTime(int &hh, int &mm, int &ss);
 bool getDate(int &yy, int &mm, int &dd);
 
-void setTZ(const char *tz, bool pin = true);  // set the timezone locally (POSIX TZ string)
-const char *getTZ();                          // timezone in effect, "" if none yet
-const char *getServerTZ();                    // last timezone the server sent, "" if none yet
+bool setTZ(const char *tz, bool keep = true);            // override the timezone (POSIX TZ string)
+bool getTZ(char *buf, size_t n, bool *pinned = nullptr); // timezone in effect; false if none
+bool isTZPinned();                                       // true: set with setTZ(tz, true)
+static bool validTZ(const char *tz);
+const char *getTZ();                          // timezone in effect, "" if none (loop() thread)
+const char *getServerTZ();                    // last timezone the server sent, "" if none (loop() thread)
 ```
 
-By default the timezone comes from the server's `connected` message. `setTZ()` applies one
-immediately, without the server: with `pin` (default) it stays in effect and the server's value
-is ignored; with `pin = false` it only holds until the server sends one (e.g. restoring a saved
-value at boot). `setTZ(nullptr)` hands control back to the server. Call it from the thread that
-runs `loop()`.
+The timezone comes from the server's `connected` message and is saved in NVS (namespace
+`WIFIPrefs`, keys `tz_srv` / `tz_set`), so `init()` puts it in effect at boot, before or without
+the server; only NTP still needs the `connected` reply. `setTZ()` overrides it: with `keep`
+(default) the zone is saved and wins over whatever the server sends; with `keep = false` it only
+stands in for the server's value until the server sends one. `setTZ(nullptr)` drops the kept zone
+and follows the server again. It returns `false` for a string that isn't shaped like a POSIX
+zone. `setTZ()`, `getTZ(buf, n)` and `isTZPinned()` may be called from any task; the zone is
+applied and saved by the next `loop()`.
 
 ### Web Server
 

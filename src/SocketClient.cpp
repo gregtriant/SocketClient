@@ -232,16 +232,107 @@ bool SocketClient::hasTime(){
     return _tc.hasTime();
 }
 
-void SocketClient::setTZ(const char *tz, bool pin) {
-    if (tz && tz[0]) {
-        _local_time_zone = tz;
-        _tz_pinned = pin;
-    } else {
-        _tz_pinned = false;
-        if (_server_time_zone.isEmpty()) return;  // nothing to go back to yet
-        _local_time_zone = _server_time_zone;
+// Guards the timezone buffers and flags: setTZ()/getTZ(buf) may run on another task. Only
+// ESP32 has one to worry about; a spinlock is enough for a 48-byte copy and needs no setup,
+// so setTZ() also works before init().
+#ifdef ESP32
+static portMUX_TYPE s_tzMux = portMUX_INITIALIZER_UNLOCKED;
+#define SC_TZ_LOCK()   portENTER_CRITICAL(&s_tzMux)
+#define SC_TZ_UNLOCK() portEXIT_CRITICAL(&s_tzMux)
+#else
+#define SC_TZ_LOCK()
+#define SC_TZ_UNLOCK()
+#endif
+
+// Shaped like a POSIX zone ("EET-2EEST,M3.5.0/3,M10.5.0/4", "GMT0", "<+03>-3"): a name first,
+// an offset somewhere. Anything else is silently treated as UTC by the C library.
+bool SocketClient::validTZ(const char *tz) {
+    if (!tz) return false;
+    size_t len = strlen(tz);
+    if (len == 0 || len >= SC_TZ_LEN) return false;
+    if (!isalpha((unsigned char)tz[0]) && tz[0] != '<') return false;
+    bool digit = false;
+    for (const char *p = tz; *p; p++) {
+        if (!isgraph((unsigned char)*p) || *p == '"') return false;
+        if (isdigit((unsigned char)*p)) digit = true;
     }
-    _tc.setTZ(_local_time_zone.c_str());
+    return digit;
+}
+
+bool SocketClient::setTZ(const char *tz, bool keep) {
+    if (!tz) tz = "";
+    if (tz[0] && !validTZ(tz)) return false;
+    SC_TZ_LOCK();
+    // A kept zone goes to _tz_set; anything else clears it, and a non-kept zone stands in
+    // for the server's.
+    const char *set = keep ? tz : "";
+    if (strcmp(_tz_set, set) != 0) {
+        strcpy(_tz_set, set);
+        _tz_save_set = true;
+    }
+    if (!keep && tz[0] && strcmp(_tz_srv, tz) != 0) {
+        strcpy(_tz_srv, tz);
+        _tz_save_srv = true;
+    }
+    _tz_apply = true;
+    SC_TZ_UNLOCK();
+    return true;
+}
+
+bool SocketClient::getTZ(char *buf, size_t n, bool *pinned) {
+    if (!buf || !n) return false;
+    SC_TZ_LOCK();
+    bool pin = _tz_set[0] != '\0';
+    strncpy(buf, pin ? _tz_set : _tz_srv, n - 1);
+    SC_TZ_UNLOCK();
+    buf[n - 1] = '\0';
+    if (pinned) *pinned = pin;
+    return buf[0] != '\0';
+}
+
+// init(): the saved timezone, unless setTZ() was already called with one.
+void SocketClient::_tzLoad() {
+    char set[SC_TZ_LEN], srv[SC_TZ_LEN];
+    _nvsManager->getTZ(NVS_TZ_SET_TOKEN, set, sizeof(set));
+    _nvsManager->getTZ(NVS_TZ_SRV_TOKEN, srv, sizeof(srv));
+    SC_TZ_LOCK();
+    if (!_tz_save_set && validTZ(set)) strcpy(_tz_set, set);
+    if (!_tz_save_srv && srv[0])       strcpy(_tz_srv, srv);
+    _tz_apply = true;
+    SC_TZ_UNLOCK();
+    _tzFlush();
+}
+
+// loop() thread: puts a changed timezone in effect and saves it. NVSManager isn't thread
+// safe, which is why setTZ() only flags the change.
+void SocketClient::_tzFlush() {
+    if (!_tz_apply && !_tz_save_set && !_tz_save_srv) return;
+    char set[SC_TZ_LEN], srv[SC_TZ_LEN];
+    SC_TZ_LOCK();
+    bool apply = _tz_apply, saveSet = _tz_save_set, saveSrv = _tz_save_srv;
+    _tz_apply = _tz_save_set = _tz_save_srv = false;
+    strcpy(set, _tz_set);
+    strcpy(srv, _tz_srv);
+    SC_TZ_UNLOCK();
+
+    if (apply) {
+        const char *tz = set[0] ? set : srv;
+        if (tz[0]) {
+            _tc.setTZ(tz);
+        } else {          // nothing kept and the server never sent one
+            unsetenv("TZ");
+            tzset();
+        }
+    }
+    if (_nvsManager) {
+        if (saveSet) _nvsManager->saveTZ(NVS_TZ_SET_TOKEN, set);
+        if (saveSrv) _nvsManager->saveTZ(NVS_TZ_SRV_TOKEN, srv);
+    } else {              // before init(): _tzLoad() must not overwrite these, and saves them
+        SC_TZ_LOCK();
+        _tz_save_set |= saveSet;
+        _tz_save_srv |= saveSrv;
+        SC_TZ_UNLOCK();
+    }
 }
 
 void SocketClient::gotMessageSocket(uint8_t *payload) {
@@ -249,14 +340,20 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
     deserializeJson(_doc, payload);
     if (strcmp(_doc["message"], "connected") == 0) {
         // Get the Time first before the JSON gets cleared.
-        // A timezone set with setTZ() stays in effect; the server's is still remembered.
+        // A timezone kept with setTZ() stays in effect; the server's is still remembered, and
+        // saved (by _tzFlush()) when it changed.
         const char *tz = _doc["time"]["timezone"] | "";
-        if (tz[0]) {
-            _server_time_zone = tz;
-            if (!_tz_pinned) _local_time_zone = tz;
+        if (tz[0] && strlen(tz) < SC_TZ_LEN) {
+            SC_TZ_LOCK();
+            if (strcmp(_tz_srv, tz) != 0) {
+                strcpy(_tz_srv, tz);
+                _tz_save_srv = true;
+            }
+            SC_TZ_UNLOCK();
         }
-        if (!_local_time_zone.isEmpty()) {
-            _tc.begin(_local_time_zone.c_str());
+        char zone[SC_TZ_LEN];
+        if (getTZ(zone, sizeof(zone))) {
+            _tc.begin(zone);
         } else if (!_doc["time"].isNull()) {
             SC_LOGE(WS_TAG, "Timezone missing or invalid!");
         }
@@ -490,7 +587,8 @@ void SocketClient::_init() {
 #endif
 
     _nvsManager = new NVSManager();
-    _diagnostics = new Diagnostics(_nvsManager, [this](const String& msg) {
+    _tzLoad();   // saved timezone in effect from boot, before (or without) the server
+    _diagnostics =new Diagnostics(_nvsManager, [this](const String& msg) {
         if (_webSocket && _webSocket->isConnected()) {
             String txt = msg;
             _webSocket->sendTXT(txt);
@@ -584,6 +682,7 @@ void SocketClient::loop() {
     if (_webSocket) _webSocket->loop();
     if (_diagnostics) _diagnostics->loop();
     _tc.loop();
+    _tzFlush();
     watchdog();
 
 #ifdef ESP32

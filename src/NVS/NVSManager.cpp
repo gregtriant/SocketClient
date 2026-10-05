@@ -31,11 +31,25 @@ void NVSManager::putString(const char* ns, const char* key, const String& value)
 }
 
 void NVSManager::saveWifiCredentials(String ssid, String password) {
-    putString(NVS_WIFI_NAMESPACE, NVS_WIFI_SSID_TOKEN, ssid);
-    putString(NVS_WIFI_NAMESPACE, NVS_WIFI_PASSWORD_TOKEN, password);
+    putString(NVS_SC_NAMESPACE, NVS_WIFI_SSID_TOKEN, ssid);
+    putString(NVS_SC_NAMESPACE, NVS_WIFI_PASSWORD_TOKEN, password);
 }
 
 void NVSManager::getWifiCredentials(String& ssid, String& password) {
-    ssid     = getString(NVS_WIFI_NAMESPACE, NVS_WIFI_SSID_TOKEN, "");
-    password = getString(NVS_WIFI_NAMESPACE, NVS_WIFI_PASSWORD_TOKEN, "");
+    ssid     = getString(NVS_SC_NAMESPACE, NVS_WIFI_SSID_TOKEN, "");
+    password = getString(NVS_SC_NAMESPACE, NVS_WIFI_PASSWORD_TOKEN, "");
+}
+
+void NVSManager::saveTZ(const char* key, const char* tz) {
+    _prefs.begin(NVS_SC_NAMESPACE, RW_MODE);
+    if (tz && tz[0])             _prefs.putString(key, tz);
+    else if (_prefs.isKey(key))  _prefs.remove(key);
+    _prefs.end();
+}
+
+void NVSManager::getTZ(const char* key, char* buf, size_t n) {
+    buf[0] = '\0';
+    _prefs.begin(NVS_SC_NAMESPACE, RW_MODE);   // RW: creates the namespace on a fresh device
+    if (_prefs.isKey(key) && !_prefs.getString(key, buf, n)) buf[0] = '\0';
+    _prefs.end();
 }
