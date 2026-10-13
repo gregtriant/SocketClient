@@ -39,8 +39,52 @@ void WifiManager::init()
 }
 
 
+void WifiManager::setEnabled(bool on)
+{
+    if (on == _enabled) return;
+    _enabled = on;
+
+    if (!on) {
+        SC_LOGI(WIFI_TAG, "WiFi off.");
+        bool wasConnected = (_wifi_status == WL_CONNECTED);
+        _connecting_time = 0;
+        _connecting_attempts = 0;
+        _pending_save = false;
+        if (WiFi.getMode() == CONST_MODE_AP_STA) {
+            WiFi.softAPdisconnect(true);
+        }
+        WiFi.disconnect(true);
+        // loop() is idle from here on, so the "lost" transition is recorded by hand - and so
+        // that the connect after setEnabled(true) is seen as a new one.
+        _wifi_status = WL_DISCONNECTED;
+        if (wasConnected && _onInternetLost) {
+            _onInternetLost();
+        }
+        return;
+    }
+
+    SC_LOGI(WIFI_TAG, "WiFi on.");
+    _apStaFinal = false;
+    _reconnect_backoff_stage = 0;
+    _boot_time = millis();
+    _ap_time = millis();
+    if (_managed) {
+        init();
+    } else {
+        // Nobody pumps loop(): just reconnect with the credentials the WiFi stack has kept.
+        WiFi.mode(WIFI_STA);
+#if defined(LIBRETUYA)
+        WiFi.reconnect();
+#else
+        WiFi.begin();
+#endif
+    }
+}
+
+
 void WifiManager::loop()
 {
+    if (!_enabled) return;
     uint64_t now = millis();
     wl_status_t wifiStatus = WiFi.status();
     /*int wifiMode =*/ (int)WiFi.getMode();

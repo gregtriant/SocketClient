@@ -132,6 +132,15 @@ class SocketClient {
     bool _pendingWifiReconnect = false;
     unsigned long _pendingWifiReconnectAt = 0;
 
+    // socketOn()/socketOff()/wifiOn()/wifiOff() only record what is wanted (they may be called
+    // from another task); _applyOnOff() in loop() does the work. The socket runs only while
+    // both are wanted.
+    volatile bool _socket_want = true;
+    volatile bool _wifi_want = true;
+    bool _socket_on = true;   // what loop() last applied: socket wanted and WiFi wanted
+    bool _wifi_on = true;     // what loop() last applied
+    void _applyOnOff();
+
 public:
     SocketClient();
     ~SocketClient();
@@ -149,6 +158,20 @@ public:
     void sendNotification(const String &message, const JsonDoc &data);
     bool isConnected() { return _webSocket && _webSocket->isConnected(); }
     void disconnect() { if (_webSocket) _webSocket->disconnect(); }
+
+    // Live switches, both on at every boot (nothing is saved). socketOff() closes the
+    // connection to the server and stops every reconnect until socketOn(); WiFi and anything
+    // else using it carry on. wifiOff() closes the WiFi connection (and the AP, if it is up)
+    // and stops WifiManager's retries until wifiOn(), which starts again from the saved
+    // credentials; without handleWifi it is a plain WiFi.disconnect(true) / WiFi.begin(). The
+    // socket connects only while both are on. Callable from any task: the getters reflect a
+    // change at once, the next loop() carries it out.
+    void socketOn()  { _socket_want = true; }
+    void socketOff() { _socket_want = false; }
+    void wifiOn()    { _wifi_want = true; }
+    void wifiOff()   { _wifi_want = false; }
+    bool isSocketOn() const { return _socket_want; }
+    bool isWifiOn() const   { return _wifi_want; }
 
     void init(const SocketClientConfig_t *config);
     void init(const char *socketHostURL, int port, bool _isSSL);

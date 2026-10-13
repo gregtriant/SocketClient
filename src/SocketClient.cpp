@@ -25,7 +25,7 @@ unsigned long SocketClient::reconnect_time = 30000;  //- 30 sec
 
 void SocketClient::watchdog() {
     SocketClient *sc = this;
-    if (!sc || !sc->_webSocket)
+    if (!sc || !sc->_webSocket || !sc->_socket_on)   // socketOff()/wifiOff(): no reconnects
         return ;
     WebSocketsClient &wsc = *sc->_webSocket;
 
@@ -504,6 +504,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
 }
 
 void SocketClient::reconnect(bool resetBackoff) {
+    if (!_socket_on) return;   // socketOff()/wifiOff(): stays closed until switched back on
     if (!WiFi.isConnected()) {
         SC_LOGD(WS_TAG, "<No WiFi>");
         return;
@@ -670,7 +671,32 @@ void SocketClient::init(const char *socketHostURL, int port, bool _isSSL) {
     _init();
 }
 
+// Carries out socketOn()/socketOff()/wifiOn()/wifiOff(). The socket goes first on the way
+// down, while WiFi can still carry its close, and WiFi first on the way up.
+void SocketClient::_applyOnOff() {
+    bool wifiWant = _wifi_want;
+    bool socketWant = _socket_want && wifiWant;
+
+    if (!socketWant && _socket_on) {
+        SC_LOGI(WS_TAG, "Socket off");
+        _socket_on = false;
+        _pendingWifiReconnect = false;
+        if (_webSocket) _webSocket->disconnect();
+    }
+    if (wifiWant != _wifi_on) {
+        SC_LOGI(WS_TAG, "WiFi %s", wifiWant ? "on" : "off");
+        _wifi_on = wifiWant;
+        if (_wifiManager) _wifiManager->setEnabled(wifiWant);
+    }
+    if (socketWant && !_socket_on) {
+        SC_LOGI(WS_TAG, "Socket on");
+        _socket_on = true;
+        reconnect();   // a no-op without WiFi: its return then schedules the reconnect
+    }
+}
+
 void SocketClient::loop() {
+    _applyOnOff();
     // WifiManager's loop() drives auto-reconnect/AP-mode fallback; only run it when it actually
     // owns the connection. Otherwise it stays passive, only used on-demand via /sc/wifi/connect.
     if (_wifiManager && _handleWifi) _wifiManager->loop();
@@ -679,7 +705,8 @@ void SocketClient::loop() {
         reconnect();
     }
     if (_webserverManager) _webserverManager->loop();
-    if (_webSocket) _webSocket->loop();
+    // Not pumped while off: WebSocketsClient::loop() is what reconnects a closed socket.
+    if (_webSocket && _socket_on) _webSocket->loop();
     if (_diagnostics) _diagnostics->loop();
     _tc.loop();
     _tzFlush();

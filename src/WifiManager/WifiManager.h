@@ -38,6 +38,7 @@ protected:
     wl_status_t _wifi_status     = WL_IDLE_STATUS; // current wifi status
     bool _pending_save           = false; // true while connecting with unsaved candidate credentials
     bool _managed                = false; // true once init() has been called, i.e. loop() is being pumped
+    bool _enabled                = true;  // false after setEnabled(false): WiFi closed, loop() idle
     bool _everConnected          = false; // true once WiFi has connected at least once since boot; gates AP+STA fallback
     uint64_t _boot_time          = 0;     // millis() at construction; start of the post-boot AP-fallback grace window
 
@@ -103,6 +104,12 @@ public:
 
     void init();
     void loop();
+
+    // false closes the WiFi connection (and the AP, if it is up) and keeps loop() from
+    // retrying; true starts over from the saved credentials, as at boot (grace window and AP
+    // fallback included). Not saved: on at every boot. Call from the task that pumps loop().
+    void setEnabled(bool on);
+    bool isEnabled() { return _enabled; }
 
     String getIP();
     String getMacAddress();
