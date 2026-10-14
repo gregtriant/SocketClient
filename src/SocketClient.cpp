@@ -23,6 +23,15 @@ unsigned long SocketClient::last_png = 0;
 unsigned long SocketClient::last_reconnect = 0;
 unsigned long SocketClient::reconnect_time = 30000;  //- 30 sec
 
+// A "requestFile" only records the request here; loop() runs the upload on its next pass,
+// after _webSocket->loop() has returned -- not inside the websocket callback, whose read, event
+// dispatch and parsed message would otherwise sit under the TLS handshake on loop()'s stack.
+// One at a time: a request while one is waiting gets "busy". loop() thread only.
+static struct {
+    bool   pending = false;
+    String url, filename, requestId;
+} s_uploadReq;
+
 void SocketClient::watchdog() {
     SocketClient *sc = this;
     if (!sc || !sc->_webSocket || !sc->_socket_on)   // socketOff()/wifiOff(): no reconnects
@@ -414,7 +423,17 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         // exactly this case.
         String requestId = _doc["requestId"].isNull() ? String("") : _doc["requestId"].as<String>();
         if (fileUrl.isEmpty()) { SC_LOGE(WS_TAG, "requestFile: missing url"); return; }
-        _uploadFile(fileUrl, _doc["filename"].as<String>(), requestId);
+        String filename = _doc["filename"].as<String>();
+        if (s_uploadReq.pending) {
+            SC_LOGE(WS_TAG, "requestFile: another upload still waiting");
+            _sendFileError(requestId, filename, "busy");
+            return;
+        }
+        // Run from loop() on its next pass, see s_uploadReq.
+        s_uploadReq.url       = fileUrl;
+        s_uploadReq.filename  = filename;
+        s_uploadReq.requestId = requestId;
+        s_uploadReq.pending   = true;
     }
 }
 
@@ -708,6 +727,12 @@ void SocketClient::loop() {
     // Not pumped while off: WebSocketsClient::loop() is what reconnects a closed socket.
     if (_webSocket && _socket_on) _webSocket->loop();
     if (_diagnostics) _diagnostics->loop();
+    if (s_uploadReq.pending) {   // a "requestFile" from the socket, see s_uploadReq
+        String url = s_uploadReq.url, filename = s_uploadReq.filename, requestId = s_uploadReq.requestId;
+        s_uploadReq.url = s_uploadReq.filename = s_uploadReq.requestId = String();
+        s_uploadReq.pending = false;
+        _uploadFile(url, filename, requestId);
+    }
     _tc.loop();
     _tzFlush();
     watchdog();
@@ -789,6 +814,44 @@ void SocketClient::_sendFileError(const String &requestId, const String &filenam
     _webSocket->sendTXT(textToSend);
 }
 
+// Read-only Stream over a few memory buffers in a row, so an upload can send header + file +
+// footer straight from where they are instead of copying them into one body buffer first.
+class ChainStream : public Stream {
+public:
+    void add(const uint8_t *p, size_t n) { if (_count < 3) { _p[_count] = p; _n[_count] = n; _count++; } }
+    int available() override {
+        size_t left = 0;
+        for (int i = _i; i < _count; i++) left += _n[i] - (i == _i ? _o : 0);
+        return (int)left;
+    }
+    int peek() override { skipEmpty(); return _i < _count ? _p[_i][_o] : -1; }
+    int read() override {
+        skipEmpty();
+        if (_i >= _count) return -1;
+        return _p[_i][_o++];
+    }
+    size_t readBytes(char *buf, size_t len) override {
+        size_t done = 0;
+        while (done < len) {
+            skipEmpty();
+            if (_i >= _count) break;
+            size_t n = _n[_i] - _o;
+            if (n > len - done) n = len - done;
+            memcpy(buf + done, _p[_i] + _o, n);
+            _o += n; done += n;
+        }
+        return done;
+    }
+    size_t write(uint8_t) override { return 0; }
+private:
+    void skipEmpty() { while (_i < _count && _o >= _n[_i]) { _i++; _o = 0; } }
+    const uint8_t *_p[3] = {};
+    size_t _n[3] = {};
+    int _count = 0, _i = 0;
+    size_t _o = 0;
+};
+
+// loop() thread (via s_uploadReq), outside the websocket callback.
 void SocketClient::_uploadFile(const String &url, const String &filename, const String &requestId) {
     const String boundary = "ESP32Boundary";
     String fname = filename.isEmpty() ? "upload.bin" : filename;
@@ -826,11 +889,13 @@ void SocketClient::_uploadFile(const String &url, const String &filename, const 
                     "\r\n";
     String footer = "\r\n--" + boundary + "--\r\n";
 
-    std::vector<uint8_t> body;
-    body.reserve(header.length() + fileBuf.size() + footer.length());
-    body.insert(body.end(), header.c_str(), header.c_str() + header.length());
-    body.insert(body.end(), fileBuf.begin(), fileBuf.end());
-    body.insert(body.end(), footer.c_str(), footer.c_str() + footer.length());
+    // Streamed from the three pieces as they are: no second copy of the file while TLS needs
+    // the heap (HTTPClient reads it through one buffer of at most HTTP_TCP_BUFFER_SIZE).
+    ChainStream body;
+    body.add((const uint8_t *)header.c_str(), header.length());
+    body.add(fileBuf.data(), fileBuf.size());
+    body.add((const uint8_t *)footer.c_str(), footer.length());
+    size_t bodyLen = header.length() + fileBuf.size() + footer.length();
 
     WiFiClientSecure secureClient;
     WiFiClient plainClient;
@@ -851,7 +916,7 @@ void SocketClient::_uploadFile(const String &url, const String &filename, const 
     http.addHeader("x-mac-address", WiFi.macAddress());
     http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
 
-    int code = http.POST(body.data(), body.size());
+    int code = http.sendRequest("POST", &body, bodyLen);
     if (code != HTTP_CODE_OK) {
         SC_LOGE(WS_TAG, "upload: HTTP %d", code);
         _sendFileError(requestId, fname, "uploadFailed");
