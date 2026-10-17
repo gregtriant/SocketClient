@@ -4,6 +4,7 @@
 #include "WifiManager/WifiManager.h"
 
 #include "../Log/Log.h"
+#include "../System/System.h"
 
 
 WebserverManager::WebserverManager(int port, WifiManager *wifiManager, DeviceInfo_t *deviceInfo, std::function<String()> getCurrentStatus)
@@ -67,7 +68,7 @@ void WebserverManager::_setupWebServer()
         {
             request->send(200, "text/plain", "Rebooting...");
             SC_LOGD(SERVER_TAG, "Rebooting...");
-            ESP.restart();
+            System::reboot(System::RebootReason::Cmd);
         });
 
     _server.on("/sc/status", HTTP_GET, [this](AsyncWebServerRequest *request)
@@ -158,7 +159,7 @@ void WebserverManager::_setupWebServer()
             request->send(error ? 500 : 200, "text/plain", error ? "OTA Update Failed!" : "Update Successful! Rebooting...");
             if (!error) {
                 delay(1000);
-                ESP.restart();
+                System::reboot(System::RebootReason::Ota);
             }
         },
         [this](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
@@ -300,7 +301,7 @@ void WebserverManager::_handleWifiConnect(AsyncWebServerRequest *request)
             // clean state with the new credentials already in NVS, rather than continuing this
             // run. Response is sent above first so the client actually sees the confirmation.
             delay(300);
-            ESP.restart();
+            System::reboot(System::RebootReason::Software);
         }
     }
 }

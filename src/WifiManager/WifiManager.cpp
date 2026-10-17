@@ -1,5 +1,6 @@
 #include "WifiManager.h"
 #include "../Log/Log.h"
+#include "../System/System.h"
 
 #if defined(ESP32) || defined(LIBRETUYA)
 #include <lwip/dns.h>
@@ -229,9 +230,9 @@ void WifiManager::_wifiConnected()
         // A live AP+STA -> STA transition mid-runtime is more fragile than just starting the
         // whole app fresh with the newly-saved credentials already in NVS (normal boot then goes
         // straight through _connectingToWifi(), no mode switch needed) - and every other piece of
-        // app state (BLE, ESP-NOW, etc.) that assumed AP+STA was up gets a clean restart too.
-        delay(300); // let the log line above actually reach the serial console before restart
-        ESP.restart();
+        // app state (BLE, ESP-NOW, etc.) that assumed AP+STA was up gets a clean reboot too.
+        delay(300); // let the log line above actually reach the serial console before rebooting
+        System::reboot(System::RebootReason::Software);
         return; // unreachable, kept for clarity
     }
     SC_LOGI(WIFI_TAG, "Connected to %s! IP address: %s", _wifi_ssid.c_str(), WiFi.localIP().toString().c_str());

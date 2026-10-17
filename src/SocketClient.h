@@ -17,6 +17,7 @@
 #include <ArduinoJson.h>
 #include <WebSocketsClient.h>
 #include <WiFiClientSecure.h>
+#include "System/System.h"
 
 #if defined(ESP32) || defined(LIBRETUYA)
 #include <AsyncTCP.h>
@@ -141,6 +142,11 @@ class SocketClient {
     bool _wifi_on = true;     // what loop() last applied
     void _applyOnOff();
 
+    // Set by reboot() (and so by the server's "@reboot" message); loop() closes the socket
+    // and reboots once the caller has returned.
+    volatile bool _pendingReboot = false;
+    volatile System::RebootReason _rebootReason = System::RebootReason::Software;
+
 public:
     SocketClient();
     ~SocketClient();
@@ -172,6 +178,11 @@ public:
     void wifiOff()   { _wifi_want = false; }
     bool isSocketOn() const { return _socket_want; }
     bool isWifiOn() const   { return _wifi_want; }
+
+    // Reboots the device on the next loop(), closing the socket first. After the boot,
+    // diagnostics report `reason` (see System.h) instead of the chip's plain
+    // "software". The "@reboot" message calls this with System::RebootReason::Cmd.
+    void reboot(System::RebootReason reason = System::RebootReason::Software);
 
     void init(const SocketClientConfig_t *config);
     void init(const char *socketHostURL, int port, bool _isSSL);

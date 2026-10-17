@@ -13,7 +13,7 @@
 #endif
 
 #define NVS_DIAG_NAMESPACE "sc-diag"
-#define NVS_DIAG_RESET_KEY "resetCount"
+#define NVS_DIAG_REBOOT_KEY "rebootCount"
 
 class Diagnostics {
 public:
@@ -31,20 +31,16 @@ private:
     NVSManager* _nvsManager;
     SendFn _sendFn;
     bool _enabled = false;
-    uint32_t _resetCount = 0;
-    // Deliberately RAM-only, unlike _resetCount: it must start over at every boot,
+    uint32_t _rebootCount = 0;
+    // Deliberately RAM-only, unlike _rebootCount: it must start over at every boot,
     // so that a drop back to 1 is what distinguishes a reboot from a plain
     // reconnect. Counts every handshake including the first one after boot, so 1
     // means "still on the connection we opened at boot".
     uint32_t _reconnectCount = 0;
-    String _resetReason;
+    String _rebootReason;   // a code from System::rebootReasonCode(), see System.h
     unsigned long _lastSent = 0;
     bool _hasSent = false;
     static const unsigned long INTERVAL = 3600000UL;
 
     void _send();
-
-#if defined(ESP32) || defined(LIBRETUYA)
-    static String _resetReasonToString(esp_reset_reason_t reason);
-#endif
 };

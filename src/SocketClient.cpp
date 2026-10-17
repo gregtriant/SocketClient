@@ -399,6 +399,8 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         _diagnostics->onDebugConfig(diagEnabled);
     } else if (strcmp(_doc["message"], "command") == 0) {
 		receivedCommand(_doc);
+    } else if (strcmp(_doc["message"], "@reboot") == 0) {
+        reboot(System::RebootReason::Cmd);
     } else if (strcmp(_doc["message"], "askStatus") == 0) {
         sendStatusWithSocket();
     } else if (strcmp(_doc["message"], "entityChanged") == 0) {
@@ -714,7 +716,20 @@ void SocketClient::_applyOnOff() {
     }
 }
 
+void SocketClient::reboot(System::RebootReason reason) {
+    SC_LOGI(WS_TAG, "Reboot requested: %s", System::rebootReasonCode(reason));
+    _rebootReason = reason;
+    _pendingReboot = true;
+}
+
 void SocketClient::loop() {
+    if (_pendingReboot) {
+        SC_LOGI(WS_TAG, "Rebooting...");
+        if (_webSocket) _webSocket->disconnect();   // a clean close, so the server sees it at once
+        delay(100);
+        System::reboot(_rebootReason);
+    }
+    
     _applyOnOff();
     // WifiManager's loop() drives auto-reconnect/AP-mode fallback; only run it when it actually
     // owns the connection. Otherwise it stays passive, only used on-demand via /sc/wifi/connect.

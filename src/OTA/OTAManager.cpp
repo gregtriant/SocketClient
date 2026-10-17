@@ -1,4 +1,5 @@
 #include "OTAManager.h"
+#include "../System/System.h"
 
 OTAManager::OTAManager() {}
 
@@ -83,8 +84,8 @@ void OTAManager::_updateFirmware(uint8_t *data, size_t len)
     return;
   Update.end(true);
   SC_LOGD(OTA_TAG, "Update Success, Total Size: %u\nRebooting...", _currentLength);
-  // Restart ESP32 to see changes
-  ESP.restart();
+  // Reboot into the new firmware
+  System::reboot(System::RebootReason::Ota);
 }
 #endif
 

@@ -6,7 +6,7 @@
 |------|--------|---------|-------|
 | `/sc/` | GET | `_sendPage` | Main nav hub |
 | `/sc/reboot` | GET | `_sendRebootPage` | Reboot confirm page |
-| `/sc/reboot` | POST | inline lambda | Calls `ESP.restart()` |
+| `/sc/reboot` | POST | inline lambda | Calls `System::reboot(Cmd)` |
 | `/sc/wifi` | GET | `_sendWifiPage` | WiFi config page |
 | `/sc/wifi/connect` | POST | `_handleWifiConnect` | Saves credentials + calls `_wifiManager->init()` |
 | `/sc/wifi/disconnect` | GET | inline lambda | Calls `WiFi.disconnect(true)` |

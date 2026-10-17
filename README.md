@@ -288,6 +288,7 @@ OTA can be triggered two ways:
 |---------|----------|-------|
 | `connected` | `connected(doc)` | Includes timezone, default data, debug config |
 | `command` | `receivedCommand(doc)` | Application command with `data` field |
+| `@reboot` | *(internal)* | The dashboard's Reboot button: the library reboots the device (like `/sc/reboot`, or `sc.reboot()` from your own code; `System::rebootReason()` tells you why this boot started); diagnostics then report the reset reason as `cmd` |
 | `askStatus` | *(internal)* | Triggers `sendStatusWithSocket()` automatically |
 | `entityChanged` | `entityChanged(doc)` | Entity name + new value |
 | `update` | *(internal)* | Triggers OTA from `url` field |
