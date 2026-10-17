@@ -14,6 +14,7 @@
 
 #define NVS_DIAG_NAMESPACE "sc-diag"
 #define NVS_DIAG_REBOOT_KEY "rebootCount"
+#define NVS_DIAG_OLD_RESET_KEY "resetCount"   // before 1.9.0; begin() moves it into rebootCount
 
 class Diagnostics {
 public:

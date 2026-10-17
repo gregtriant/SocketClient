@@ -7,8 +7,14 @@ Diagnostics::Diagnostics(NVSManager* nvsManager, SendFn sendFn)
 
 void Diagnostics::begin() {
     _rebootReason = System::rebootReasonCode(System::rebootReason());
-    _rebootCount = _nvsManager->getUInt(NVS_DIAG_NAMESPACE, NVS_DIAG_REBOOT_KEY, 0) + 1;
+    // Before 1.9.0 the count was kept under "resetCount". Its value moves into rebootCount once,
+    // then the old key is deleted. Added rather than copied: 1.9.0 itself counted afresh under
+    // the new key without deleting the old one, so a device that ran it holds part of its
+    // count in each.
+    uint32_t oldCount = _nvsManager->getUInt(NVS_DIAG_NAMESPACE, NVS_DIAG_OLD_RESET_KEY, 0);
+    _rebootCount = _nvsManager->getUInt(NVS_DIAG_NAMESPACE, NVS_DIAG_REBOOT_KEY, 0) + oldCount + 1;
     _nvsManager->putUInt(NVS_DIAG_NAMESPACE, NVS_DIAG_REBOOT_KEY, _rebootCount);
+    if (oldCount) _nvsManager->remove(NVS_DIAG_NAMESPACE, NVS_DIAG_OLD_RESET_KEY);
 }
 
 // Called from the WStype_CONNECTED event.

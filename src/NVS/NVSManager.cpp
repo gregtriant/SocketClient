@@ -30,6 +30,12 @@ void NVSManager::putString(const char* ns, const char* key, const String& value)
     _prefs.end();
 }
 
+void NVSManager::remove(const char* ns, const char* key) {
+    _prefs.begin(ns, RW_MODE);
+    if (_prefs.isKey(key)) _prefs.remove(key);
+    _prefs.end();
+}
+
 void NVSManager::saveWifiCredentials(String ssid, String password) {
     putString(NVS_SC_NAMESPACE, NVS_WIFI_SSID_TOKEN, ssid);
     putString(NVS_SC_NAMESPACE, NVS_WIFI_PASSWORD_TOKEN, password);

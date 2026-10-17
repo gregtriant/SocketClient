@@ -35,6 +35,7 @@ public:
     void     putUInt(const char* ns, const char* key, uint32_t value);
     String   getString(const char* ns, const char* key, const String& defaultValue = "");
     void     putString(const char* ns, const char* key, const String& value);
+    void     remove(const char* ns, const char* key);   // no-op (and no flash write) if absent
 
     void saveWifiCredentials(String ssid, String password);
     void getWifiCredentials(String& ssid, String& password);
