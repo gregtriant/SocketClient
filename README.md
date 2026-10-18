@@ -287,16 +287,27 @@ OTA can be triggered two ways:
 | Message | Callback | Notes |
 |---------|----------|-------|
 | `connected` | `connected(doc)` | Includes timezone, default data, debug config |
-| `command` | `receivedCommand(doc)` | Application command with `data` field |
+| `command` | `receivedCommand(doc)` | Application command with `data` field, and `user`: who sent it (see below) |
 | `@reboot` | *(internal)* | The dashboard's Reboot button: the library reboots the device (like `/sc/reboot`, or `sc.reboot()` from your own code; `System::rebootReason()` tells you why this boot started); diagnostics then report the reset reason as `cmd` |
 | `askStatus` | *(internal)* | Triggers `sendStatusWithSocket()` automatically |
-| `entityChanged` | `entityChanged(doc)` | Entity name + new value |
+| `entityChanged` | `entityChanged(doc)` | Entity name + new value, and `user` (see below) |
 | `update` | *(internal)* | Triggers OTA from `url` field |
 | `fileReady` | `fileReceived(filename, buf)` | Library downloads file and calls callback with bytes |
 | `requestFile` | `fileRequested(filename, buf)` | Library calls callback, then POSTs filled buffer to server |
 | `debugLoggingConfig` | *(internal)* | Updates `{enabled, level}` at runtime |
 
 > **Note:** All callbacks share a single internal `JsonDocument`. Copy any values you need before returning from the callback.
+
+**Who sent it.** A device can be shared by several accounts. `command` and `entityChanged` carry `user: { idx, role }` for the account that sent them. `idx` is that account's number on this device: 1 for whoever added it, 2 for the first person it was shared with, and so on, never reused (the dashboard's Access tab shows it). `role` is `"admin"` or `"user"` of this device. The server sets `user` from the sender's signed-in connection, so a browser can't fake it. It's missing when the server doesn't know the sender, or the server predates it:
+
+```cpp
+.receivedCommand = [](JsonDoc doc) {
+    String cmd  = doc["data"];
+    int    idx  = doc["user"]["idx"] | 0;    // 0 = unknown
+    String role = doc["user"]["role"] | "";  // "admin", "user" or ""
+    Serial.printf("%s from user #%d (%s)\n", cmd.c_str(), idx, role.c_str());
+},
+```
 
 ## Home Assistant MQTT (Optional)
 
