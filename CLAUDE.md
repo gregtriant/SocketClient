@@ -38,9 +38,9 @@ All messages are JSON over WebSocket. Key message types:
 - `connect` — sent on WebSocket connect (includes deviceId, token, version, IP)
 - `connected` — received from server with timezone and persisted device data
 - `askStatus` / `returningStatus` — server requests status, client responds via the user's `sendStatus` callback
-- `command` — server-initiated command dispatched to `receivedCommand` callback
+- `command` — server-initiated command dispatched to `receivedCommand` callback; carries `user: { idx, role }` (`idx` = the sender's number on this device, 1 for its first user and never reused; `role` = `"admin"` / `"user"`), set by the server from the sender's session and absent if unknown; the library passes it through untouched in `doc`
 - `@reboot` — sent by the browser's Reboot button, forwarded by the server like `command` (server needs `'@reboot': forwardMessageToDevice` in its handler map). Never reaches the app: it calls `reboot(System::RebootReason::Cmd)`, and the next `loop()` closes the socket and calls `System::reboot()` (named after the local `/sc/reboot`). A reconnect needs no device message: the browser's `closeConnection` has the server close the socket, and the device reconnects on its own
-- `entityChanged` — server notifies of entity value change
+- `entityChanged` — server notifies of entity value change; carries `user` like `command`
 - `update` — triggers OTA firmware update from a URL
 - `@log` / `notification` — client-to-server log and notification messages
 
