@@ -36,6 +36,25 @@ static struct {
 // Largest file either way over the socket. The server enforces the same limit.
 static const size_t SC_FILE_MAX = 4096;
 
+// Allocation that reports failure instead of aborting. arduino-esp32 builds with exceptions on,
+// where a failed reserve()/assign() throws std::bad_alloc; ESP8266 builds without them, where
+// new aborts on its own and the capacity check is all there is.
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
+#define SC_TRY_ALLOC(stmt) try { stmt; } catch (const std::bad_alloc &) { return false; }
+#else
+#define SC_TRY_ALLOC(stmt) stmt;
+#endif
+
+static bool sc_reserve(std::vector<uint8_t> &v, size_t n) {
+    SC_TRY_ALLOC(v.reserve(n))
+    return v.capacity() >= n;
+}
+
+static bool sc_assign(std::vector<uint8_t> &v, const uint8_t *p, size_t n) {
+    SC_TRY_ALLOC(v.assign(p, p + n))
+    return v.size() == n;
+}
+
 // Builds one binary file frame: [uint16 big-endian header length][JSON header][data].
 // Sets hdr["message"] and hdr["size"]. One reserve() for the whole frame; false if it failed.
 static bool sc_buildFileFrame(JsonDocument &hdr, const std::vector<uint8_t> &data, std::vector<uint8_t> &out) {
@@ -44,14 +63,7 @@ static bool sc_buildFileFrame(JsonDocument &hdr, const std::vector<uint8_t> &dat
     size_t hlen = measureJson(hdr);
     if (hlen > 0xFFFF) return false;
     out.clear();
-    // arduino-esp32 builds with exceptions on: a failed reserve() throws instead of
-    // leaving the capacity short, so catch it (the capacity check stays as a second guard).
-    try {
-        out.reserve(2 + hlen + data.size());
-    } catch (const std::bad_alloc &) {
-        return false;
-    }
-    if (out.capacity() < 2 + hlen + data.size()) return false;
+    if (!sc_reserve(out, 2 + hlen + data.size())) return false;
     out.resize(2 + hlen);
     out[0] = (uint8_t)(hlen >> 8);
     out[1] = (uint8_t)(hlen & 0xFF);
@@ -543,8 +555,9 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
         case WStype_BIN:
             globalSC->last_dog = millis();
             SC_LOGD(WS_TAG, "Get binary length: %u", (unsigned)length);
-            if (globalSC->_fileReceived) {
-                // Local doc, not the shared _doc.
+            {
+                // Local doc, not the shared _doc. Parsed even with no callback, so a
+                // malformed frame is always logged.
                 JsonDocument hdr;
                 const uint8_t *data = nullptr;
                 size_t dataLen = 0;
@@ -552,12 +565,13 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
                     SC_LOGE(WS_TAG, "Bad file frame (%u bytes), dropped", (unsigned)length);
                     break;
                 }
-                try {
-                    std::vector<uint8_t> buf(data, data + dataLen);
-                    globalSC->_fileReceived(hdr["filename"].as<String>(), buf);
-                } catch (const std::bad_alloc &) {
+                if (!globalSC->_fileReceived) break;
+                std::vector<uint8_t> buf;
+                if (!sc_assign(buf, data, dataLen)) {
                     SC_LOGE(WS_TAG, "File frame dropped: out of memory (%u bytes)", (unsigned)dataLen);
+                    break;
                 }
+                globalSC->_fileReceived(hdr["filename"].as<String>(), buf);
             }
             break;
         case WStype_FRAGMENT_TEXT_START:
