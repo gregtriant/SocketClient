@@ -23,14 +23,35 @@ unsigned long SocketClient::last_png = 0;
 unsigned long SocketClient::last_reconnect = 0;
 unsigned long SocketClient::reconnect_time = 30000;  //- 30 sec
 
-// A "requestFile" only records the request here; loop() runs the upload on its next pass,
+// A "requestFile" only records the request here; loop() sends the file on its next pass,
 // after _webSocket->loop() has returned -- not inside the websocket callback, whose read, event
-// dispatch and parsed message would otherwise sit under the TLS handshake on loop()'s stack.
+// dispatch and parsed message would otherwise sit under the sketch's file callback on loop()'s stack.
 // One at a time: a request while one is waiting gets "busy". loop() thread only.
 static struct {
     bool   pending = false;
-    String url, filename, requestId;
+    String filename, requestId;
 } s_uploadReq;
+
+// Largest file either way over the socket. The server enforces the same limit.
+static const size_t SC_FILE_MAX = 4096;
+
+// Builds one binary file frame: [uint16 big-endian header length][JSON header][data].
+// Sets hdr["message"] and hdr["size"]. One reserve() for the whole frame; false if it failed.
+static bool sc_buildFileFrame(JsonDocument &hdr, const std::vector<uint8_t> &data, std::vector<uint8_t> &out) {
+    hdr["message"] = "file";
+    hdr["size"]    = data.size();
+    size_t hlen = measureJson(hdr);
+    if (hlen > 0xFFFF) return false;
+    out.clear();
+    out.reserve(2 + hlen + data.size());
+    if (out.capacity() < 2 + hlen + data.size()) return false;
+    out.resize(2 + hlen);
+    out[0] = (uint8_t)(hlen >> 8);
+    out[1] = (uint8_t)(hlen & 0xFF);
+    serializeJson(hdr, (char *)out.data() + 2, hlen);
+    out.insert(out.end(), data.begin(), data.end());
+    return true;
+}
 
 void SocketClient::watchdog() {
     SocketClient *sc = this;
@@ -409,12 +430,7 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         String updateURL = _doc["url"];
         SC_LOGD(WS_TAG, "Update URL: %s", updateURL.c_str());
         _otaManager->startOTA(updateURL);
-    } else if (strcmp(_doc["message"], "fileReady") == 0) {
-        String fileUrl = _doc["url"].as<String>();
-        if (fileUrl.isEmpty()) { SC_LOGE(WS_TAG, "fileReady: missing url"); return; }
-        _downloadFile(fileUrl, _doc["filename"].as<String>(), _doc["size"].as<size_t>());
     } else if (strcmp(_doc["message"], "requestFile") == 0) {
-        String fileUrl = _doc["url"].as<String>();
         // ArduinoJson serializes a null/missing variant to the literal string
         // "null" via .as<String>() — that would be a truthy sentinel on the
         // wire and break the browser's legacy-request check. isNull() covers
@@ -424,7 +440,6 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         // pre-1.6.0 devices, since an old server paired with a new device hits
         // exactly this case.
         String requestId = _doc["requestId"].isNull() ? String("") : _doc["requestId"].as<String>();
-        if (fileUrl.isEmpty()) { SC_LOGE(WS_TAG, "requestFile: missing url"); return; }
         String filename = _doc["filename"].as<String>();
         if (s_uploadReq.pending) {
             SC_LOGE(WS_TAG, "requestFile: another upload still waiting");
@@ -432,7 +447,6 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
             return;
         }
         // Run from loop() on its next pass, see s_uploadReq.
-        s_uploadReq.url       = fileUrl;
         s_uploadReq.filename  = filename;
         s_uploadReq.requestId = requestId;
         s_uploadReq.pending   = true;
@@ -743,10 +757,10 @@ void SocketClient::loop() {
     if (_webSocket && _socket_on) _webSocket->loop();
     if (_diagnostics) _diagnostics->loop();
     if (s_uploadReq.pending) {   // a "requestFile" from the socket, see s_uploadReq
-        String url = s_uploadReq.url, filename = s_uploadReq.filename, requestId = s_uploadReq.requestId;
-        s_uploadReq.url = s_uploadReq.filename = s_uploadReq.requestId = String();
+        String filename = s_uploadReq.filename, requestId = s_uploadReq.requestId;
+        s_uploadReq.filename = s_uploadReq.requestId = String();
         s_uploadReq.pending = false;
-        _uploadFile(url, filename, requestId);
+        _sendFile(filename, requestId);
     }
     _tc.loop();
     _tzFlush();
@@ -775,48 +789,11 @@ String SocketClient::getVersion() {
     return JsonToSend;
 }
 
-void SocketClient::_downloadFile(const String &url, const String &filename, size_t size) {
-    WiFiClientSecure secureClient;
-    WiFiClient plainClient;
-    HTTPClient http;
-
-    bool ok;
-    if (url.startsWith("https://")) {
-        secureClient.setInsecure();
-        ok = http.begin(secureClient, url);
-    } else {
-        ok = http.begin(plainClient, url);
-    }
-    if (!ok) {
-        SC_LOGE(WS_TAG, "download: http.begin failed: %s", url.c_str());
-        return;
-    }
-    http.addHeader("x-mac-address", WiFi.macAddress());
-
-    int code = http.GET();
-    if (code != HTTP_CODE_OK) {
-        SC_LOGE(WS_TAG, "download: HTTP %d", code);
-        http.end();
-        return;
-    }
-
-    size_t clampedSize = (size < 4096) ? size : 4096;
-    std::vector<uint8_t> buf(clampedSize);
-    size_t actual = http.getStream().readBytes(buf.data(), clampedSize);
-    buf.resize(actual);
-    http.end();
-
-    SC_LOGD(WS_TAG, "download: '%s' %u bytes", filename.c_str(), actual);
-    if (_fileReceived) {
-        _fileReceived(filename, buf);
-    }
-}
-
 void SocketClient::_sendFileError(const String &requestId, const String &filename, const char *error) {
     if (!_webSocket || !_webSocket->isConnected()) return;
 
-    // Local doc, same reason as sendDebugLog: _uploadFile runs inside
-    // gotMessageSocket while the shared _doc still holds the inbound message.
+    // Local doc, same reason as sendDebugLog: _sendFile runs from
+    // loop(), apart from the shared _doc.
     JsonDocument errDoc;
     errDoc["message"]   = "fileError";
     errDoc["requestId"] = requestId;
@@ -829,46 +806,8 @@ void SocketClient::_sendFileError(const String &requestId, const String &filenam
     _webSocket->sendTXT(textToSend);
 }
 
-// Read-only Stream over a few memory buffers in a row, so an upload can send header + file +
-// footer straight from where they are instead of copying them into one body buffer first.
-class ChainStream : public Stream {
-public:
-    void add(const uint8_t *p, size_t n) { if (_count < 3) { _p[_count] = p; _n[_count] = n; _count++; } }
-    int available() override {
-        size_t left = 0;
-        for (int i = _i; i < _count; i++) left += _n[i] - (i == _i ? _o : 0);
-        return (int)left;
-    }
-    int peek() override { skipEmpty(); return _i < _count ? _p[_i][_o] : -1; }
-    int read() override {
-        skipEmpty();
-        if (_i >= _count) return -1;
-        return _p[_i][_o++];
-    }
-    size_t readBytes(char *buf, size_t len) override {
-        size_t done = 0;
-        while (done < len) {
-            skipEmpty();
-            if (_i >= _count) break;
-            size_t n = _n[_i] - _o;
-            if (n > len - done) n = len - done;
-            memcpy(buf + done, _p[_i] + _o, n);
-            _o += n; done += n;
-        }
-        return done;
-    }
-    size_t write(uint8_t) override { return 0; }
-private:
-    void skipEmpty() { while (_i < _count && _o >= _n[_i]) { _i++; _o = 0; } }
-    const uint8_t *_p[3] = {};
-    size_t _n[3] = {};
-    int _count = 0, _i = 0;
-    size_t _o = 0;
-};
-
 // loop() thread (via s_uploadReq), outside the websocket callback.
-void SocketClient::_uploadFile(const String &url, const String &filename, const String &requestId) {
-    const String boundary = "ESP32Boundary";
+void SocketClient::_sendFile(const String &filename, const String &requestId) {
     String fname = filename.isEmpty() ? "upload.bin" : filename;
 
     std::vector<uint8_t> fileBuf;
@@ -880,63 +819,45 @@ void SocketClient::_uploadFile(const String &url, const String &filename, const 
     }
 
     if (fileBuf.empty()) {
-        SC_LOGE(WS_TAG, "upload: empty buffer");
+        SC_LOGE(WS_TAG, "sendFile: empty buffer");
         // The sketch left the buffer alone: it has no such file.
         _sendFileError(requestId, fname, "notFound");
         return;
     }
-    if (fileBuf.size() > 4096) {
-        SC_LOGE(WS_TAG, "upload: file too large (%u bytes)", fileBuf.size());
+    if (fileBuf.size() > SC_FILE_MAX) {
+        SC_LOGE(WS_TAG, "sendFile: file too large (%u bytes)", (unsigned)fileBuf.size());
         _sendFileError(requestId, fname, "tooLarge");
         return;
     }
 
-    String ftype = "application/octet-stream";
+    String ftype;
     int ipos = fname.indexOf('|');
     if (ipos >= 0) {
         ftype = fname.substring(ipos + 1);
         fname = fname.substring(0, ipos);
     }
 
-    String header = "--" + boundary + "\r\n"
-                    "Content-Disposition: form-data; name=\"file\"; filename=\"" + fname + "\"\r\n"
-                    "Content-Type: " + ftype + "\r\n"
-                    "\r\n";
-    String footer = "\r\n--" + boundary + "--\r\n";
-
-    // Streamed from the three pieces as they are: no second copy of the file while TLS needs
-    // the heap (HTTPClient reads it through one buffer of at most HTTP_TCP_BUFFER_SIZE).
-    ChainStream body;
-    body.add((const uint8_t *)header.c_str(), header.length());
-    body.add(fileBuf.data(), fileBuf.size());
-    body.add((const uint8_t *)footer.c_str(), footer.length());
-    size_t bodyLen = header.length() + fileBuf.size() + footer.length();
-
-    WiFiClientSecure secureClient;
-    WiFiClient plainClient;
-    HTTPClient http;
-
-    bool ok;
-    if (url.startsWith("https://")) {
-        secureClient.setInsecure();
-        ok = http.begin(secureClient, url);
-    } else {
-        ok = http.begin(plainClient, url);
+    std::vector<uint8_t> frame;
+    bool ok = false;
+    {
+        // Local doc: the shared _doc is not ours to touch here.
+        JsonDocument hdr;
+        hdr["filename"] = fname;
+        if (requestId.isEmpty()) hdr["requestId"] = nullptr;
+        else                     hdr["requestId"] = requestId;
+        if (ipos >= 0)           hdr["contentType"] = ftype;
+        ok = sc_buildFileFrame(hdr, fileBuf, frame);
+    }
+    if (ok) {
+        // The frame holds its own copy: drop the sketch's buffer so only one file-sized
+        // allocation is alive during the send.
+        std::vector<uint8_t>().swap(fileBuf);
+        ok = _webSocket && _webSocket->isConnected() && _webSocket->sendBIN(frame.data(), frame.size());
     }
     if (!ok) {
-        SC_LOGE(WS_TAG, "upload: http.begin failed: %s", url.c_str());
-        _sendFileError(requestId, fname, "uploadFailed");
-        return;
-    }
-    http.addHeader("x-mac-address", WiFi.macAddress());
-    http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
-
-    int code = http.sendRequest("POST", &body, bodyLen);
-    if (code != HTTP_CODE_OK) {
-        SC_LOGE(WS_TAG, "upload: HTTP %d", code);
+        SC_LOGE(WS_TAG, "sendFile: could not send '%s'", fname.c_str());
         _sendFileError(requestId, fname, "uploadFailed");
     } else {
-        SC_LOGD(WS_TAG, "upload: HTTP %d", code);
+        SC_LOGD(WS_TAG, "sendFile: '%s' %u bytes", fname.c_str(), (unsigned)frame.size());
     }
-    http.end();
 }
