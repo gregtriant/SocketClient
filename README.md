@@ -10,7 +10,7 @@ A PlatformIO library for ESP32/ESP8266 that connects your device to the [sensord
 - NTP time sync with server-provided timezone
 - Remote debug logging with server-side level filtering
 - OTA firmware updates triggered by the server
-- Bidirectional file transfer over HTTPS (server→device download, device→server upload)
+- Bidirectional file transfer over the WebSocket (server→device and device→server, up to 4096 bytes)
 - Home Assistant MQTT autodiscovery (optional)
 - ESP32 and ESP8266 support
 
@@ -221,11 +221,11 @@ Use `sc.getServer()` to add your own routes to the same `AsyncWebServer` instanc
 
 ## File Transfer
 
-The library supports bidirectional file transfer between the server and device over HTTPS, triggered by WebSocket messages.
+The library supports bidirectional file transfer between the server and device over the same WebSocket, as one binary message per file: a 2-byte big-endian header length, a JSON header (`message: "file"`, `filename`, `size`, and for uploads `requestId` and an optional `contentType`), then the raw bytes. No second connection is opened.
 
 ### Server → Device (download)
 
-When the server sends a `fileReady` message, the library performs an HTTPS GET, reads up to 4096 bytes, and calls `fileReceived` with the result:
+When the server sends a file, the library calls `fileReceived` with the filename and bytes:
 
 ```cpp
 .fileReceived = [](const String &filename, const std::vector<uint8_t> &buf) {
@@ -235,13 +235,15 @@ When the server sends a `fileReady` message, the library performs an HTTPS GET, 
 },
 ```
 
+A malformed frame, or one over 4096 bytes of file data, is dropped and logged.
+
 ### Device → Server (upload)
 
 When the server sends a `requestFile` message, the library calls `fileRequested` with an empty vector. Fill it with whatever bytes you want to upload. `filename` is passed by reference, so the callback may also rename it:
 
 ```cpp
 .fileRequested = [](String &filename, std::vector<uint8_t> &buf) {
-    // fill buf — the library will POST it to the server as multipart/form-data
+    // fill buf — the library sends it to the server as one binary message
     // optionally rename the file being uploaded:
     filename = "renamed.bin";
     String payload = "Hello from device!";
@@ -254,13 +256,11 @@ If `fileRequested` is `nullptr`, the library sends the string `"Hello from devic
 If the callback leaves `buf` empty, the library treats that as "no such file":
 it skips the upload and sends a `fileError` with code `notFound`, which the
 browser surfaces immediately instead of waiting out its timeout. The other
-codes are `tooLarge` (over 4096 bytes) and `uploadFailed` (could not connect,
-or the server answered non-200).
+codes are `tooLarge` (over 4096 bytes), `uploadFailed` (could not send it over the socket) and `busy` (another upload is still waiting).
 
-The final filename (after the callback runs) is sent to the server via the multipart
-`Content-Disposition: filename="..."` header.
+The final filename (after the callback runs) is sent in the frame's JSON header.
 
-**Limits:** Files larger than 4096 bytes are rejected with an error log. Auth is via `x-mac-address` header (device must be registered on the server).
+**Limits:** Files larger than 4096 bytes are rejected with an error log, in both directions. The server only accepts a file from a registered, owned device. It needs a server version that supports binary file frames.
 
 ## OTA Updates
 
@@ -280,7 +280,8 @@ OTA can be triggered two ways:
 | `@log` | `sendLog()` | `{text: "..."}` |
 | `@debugLog` | `sendDebugLog()` | `{level, text, timestamp}` |
 | `notification` | `sendNotification()` | `{body: "..."}` or `{body, options: {...}}` |
-| `fileError` | Automatic — a `requestFile` the library can't fulfil | `{requestId, filename, error}`; `error` is `notFound` (the `fileRequested` callback left `buf` empty), `tooLarge` (over 4096 bytes), or `uploadFailed` (couldn't connect, or the server answered non-200) |
+| `file` (binary frame) | Answer to a `requestFile`: header + bytes, see [File Transfer](#file-transfer) | `[2-byte header length][{message:"file", filename, size, requestId, contentType?}][bytes]` |
+| `fileError` | Automatic — a `requestFile` the library can't fulfil | `{requestId, filename, error}`; `error` is `notFound` (the `fileRequested` callback left `buf` empty), `tooLarge` (over 4096 bytes), `uploadFailed` (couldn't send it over the socket), or `busy` |
 
 ### Server → Device
 
@@ -292,8 +293,8 @@ OTA can be triggered two ways:
 | `askStatus` | *(internal)* | Triggers `sendStatusWithSocket()` automatically |
 | `entityChanged` | `entityChanged(doc)` | Entity name + new value, and `user` (see below) |
 | `update` | *(internal)* | Triggers OTA from `url` field |
-| `fileReady` | `fileReceived(filename, buf)` | Library downloads file and calls callback with bytes |
-| `requestFile` | `fileRequested(filename, buf)` | Library calls callback, then POSTs filled buffer to server |
+| `file` (binary frame) | `fileReceived(filename, buf)` | The file arrives in the frame; library parses it and calls the callback with the bytes |
+| `requestFile` | `fileRequested(filename, buf)` | Library calls callback, then sends the filled buffer back as a binary `file` frame |
 | `debugLoggingConfig` | *(internal)* | Updates `{enabled, level}` at runtime |
 
 > **Note:** All callbacks share a single internal `JsonDocument`. Copy any values you need before returning from the callback.

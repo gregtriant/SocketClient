@@ -8,6 +8,7 @@
 
 #include "TimeClient/TimeClient.h"
 #include <stdarg.h>
+#include <new>
 
 #ifndef UPDATE_SIZE_UNKNOWN
 #define UPDATE_SIZE_UNKNOWN 0xFFFFFFFF
@@ -43,7 +44,13 @@ static bool sc_buildFileFrame(JsonDocument &hdr, const std::vector<uint8_t> &dat
     size_t hlen = measureJson(hdr);
     if (hlen > 0xFFFF) return false;
     out.clear();
-    out.reserve(2 + hlen + data.size());
+    // arduino-esp32 builds with exceptions on: a failed reserve() throws instead of
+    // leaving the capacity short, so catch it (the capacity check stays as a second guard).
+    try {
+        out.reserve(2 + hlen + data.size());
+    } catch (const std::bad_alloc &) {
+        return false;
+    }
     if (out.capacity() < 2 + hlen + data.size()) return false;
     out.resize(2 + hlen);
     out[0] = (uint8_t)(hlen >> 8);
@@ -51,6 +58,21 @@ static bool sc_buildFileFrame(JsonDocument &hdr, const std::vector<uint8_t> &dat
     serializeJson(hdr, (char *)out.data() + 2, hlen);
     out.insert(out.end(), data.begin(), data.end());
     return true;
+}
+
+// Parses one inbound binary file frame (see sc_buildFileFrame). On success hdr holds the
+// header and data/dataLen point into p. False for anything malformed or over SC_FILE_MAX.
+static bool sc_parseFileFrame(const uint8_t *p, size_t len, JsonDocument &hdr, const uint8_t *&data, size_t &dataLen) {
+    if (!p || len < 2) return false;
+    size_t hlen = ((size_t)p[0] << 8) | p[1];
+    if (hlen > len - 2) return false;
+    if (deserializeJson(hdr, (const char *)p + 2, hlen)) return false;
+    const char *msg = hdr["message"] | "";
+    if (strcmp(msg, "file") != 0) return false;
+    if (!hdr["filename"].is<const char *>()) return false;
+    data    = p + 2 + hlen;
+    dataLen = len - 2 - hlen;
+    return dataLen <= SC_FILE_MAX;
 }
 
 void SocketClient::watchdog() {
@@ -440,7 +462,8 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         // pre-1.6.0 devices, since an old server paired with a new device hits
         // exactly this case.
         String requestId = _doc["requestId"].isNull() ? String("") : _doc["requestId"].as<String>();
-        String filename = _doc["filename"].as<String>();
+        // Same for filename: a missing one becomes "", so _sendFile's default applies.
+        String filename = _doc["filename"].isNull() ? String("") : _doc["filename"].as<String>();
         if (s_uploadReq.pending) {
             SC_LOGE(WS_TAG, "requestFile: another upload still waiting");
             _sendFileError(requestId, filename, "busy");
@@ -519,7 +542,23 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
         } break;
         case WStype_BIN:
             globalSC->last_dog = millis();
-            SC_LOGD(WS_TAG, "Get binary length: %u", length);
+            SC_LOGD(WS_TAG, "Get binary length: %u", (unsigned)length);
+            if (globalSC->_fileReceived) {
+                // Local doc, not the shared _doc.
+                JsonDocument hdr;
+                const uint8_t *data = nullptr;
+                size_t dataLen = 0;
+                if (!sc_parseFileFrame(payload, length, hdr, data, dataLen)) {
+                    SC_LOGE(WS_TAG, "Bad file frame (%u bytes), dropped", (unsigned)length);
+                    break;
+                }
+                try {
+                    std::vector<uint8_t> buf(data, data + dataLen);
+                    globalSC->_fileReceived(hdr["filename"].as<String>(), buf);
+                } catch (const std::bad_alloc &) {
+                    SC_LOGE(WS_TAG, "File frame dropped: out of memory (%u bytes)", (unsigned)dataLen);
+                }
+            }
             break;
         case WStype_FRAGMENT_TEXT_START:
         case WStype_FRAGMENT_BIN_START:
@@ -792,8 +831,9 @@ String SocketClient::getVersion() {
 void SocketClient::_sendFileError(const String &requestId, const String &filename, const char *error) {
     if (!_webSocket || !_webSocket->isConnected()) return;
 
-    // Local doc, same reason as sendDebugLog: _sendFile runs from
-    // loop(), apart from the shared _doc.
+    // Local doc, same reason as sendDebugLog: the shared _doc is not ours here. Callers are
+    // _sendFile (from loop(), apart from _doc) and gotMessageSocket's "busy" path, where
+    // _doc still holds the inbound message being read.
     JsonDocument errDoc;
     errDoc["message"]   = "fileError";
     errDoc["requestId"] = requestId;
@@ -848,6 +888,7 @@ void SocketClient::_sendFile(const String &filename, const String &requestId) {
         if (ipos >= 0)           hdr["contentType"] = ftype;
         ok = sc_buildFileFrame(hdr, fileBuf, frame);
     }
+    size_t fileSize = fileBuf.size();
     if (ok) {
         // The frame holds its own copy: drop the sketch's buffer so only one file-sized
         // allocation is alive during the send.
@@ -858,6 +899,6 @@ void SocketClient::_sendFile(const String &filename, const String &requestId) {
         SC_LOGE(WS_TAG, "sendFile: could not send '%s'", fname.c_str());
         _sendFileError(requestId, fname, "uploadFailed");
     } else {
-        SC_LOGD(WS_TAG, "sendFile: '%s' %u bytes", fname.c_str(), (unsigned)frame.size());
+        SC_LOGD(WS_TAG, "sendFile: '%s' %u bytes", fname.c_str(), (unsigned)fileSize);
     }
 }

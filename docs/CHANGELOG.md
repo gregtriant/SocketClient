@@ -1,5 +1,26 @@
 # Changelog for Socket Client library
 
+## [1.10.0] - 2026-10-21
+
+### Changed
+
+- File transfer now runs over the WebSocket in both directions, as one binary message per file:
+  a 2-byte big-endian header length, a JSON header (`message: "file"`, `filename`, `size`, and for
+  uploads `requestId` and an optional `contentType`), then the raw bytes. The second TLS
+  connection to the server (HTTPS GET/POST) is gone, which saves its RAM and handshake time.
+  Files are still limited to 4096 bytes. The sketch API is unchanged: `fileReceived` and
+  `fileRequested` work as before.
+- Needs a server that sends and accepts binary file frames; deploy it before shipping this
+  firmware. The old `fileReady` message and a `requestFile` carrying a `url` are no longer
+  handled. `uploadFailed` now means the file could not be sent over the socket.
+
+### Fixed
+
+- A `requestFile` without a `filename` was treated as a file named "null"; it now gets the
+  default `upload.bin`.
+- Running out of memory while building or receiving a file frame drops the file (and sends
+  `uploadFailed` for an upload) instead of aborting the device.
+
 ## [1.8.13] - 2026-09-17
 
 ### Fixed
