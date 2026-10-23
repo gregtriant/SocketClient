@@ -380,13 +380,13 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         if (!_doc["data"].isNull()) {
             // check if _doc["data"] is a string
             if (_doc["data"].is<const char *>()) {
-                SC_LOGD(WS_TAG, "data is string");
+                SC_LOGV(WS_TAG, "data is string");
                 // TODO: remove this when the server is fixed and all the devices are updated
                 JsonDocument tempDoc;//-(2024);
                 deserializeJson(tempDoc, _doc["data"]);
                 connected(tempDoc);
             } else {
-                SC_LOGD(WS_TAG, "data is json");
+                SC_LOGV(WS_TAG, "data is json");
                 connected(_doc["data"]);
             }
         }
