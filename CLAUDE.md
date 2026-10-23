@@ -44,6 +44,37 @@ All messages are JSON over WebSocket. Key message types:
 - `update` — triggers OTA firmware update from a URL
 - `@log` / `notification` — client-to-server log and notification messages
 
+### File transfer
+
+One binary WebSocket message per file, in either direction: `[uint16 big-endian header
+length][JSON header][raw bytes]`. The header carries `message: "file"`, `filename`, `size`,
+and for uploads `requestId` and an optional `contentType`. Files are capped at 4096 bytes
+(`FileWire::MAX_SIZE`) and the server enforces the same limit.
+
+The code is deliberately split in two:
+
+- **`src/FileTransfer/FileWire.{h,cpp}`** — the wire format alone, as free functions in a
+  `FileWire` namespace: `build()`, `parse()`, `MAX_SIZE`, plus `reserve()`/`assign()`, which
+  are `std::vector` calls that report an allocation failure instead of aborting the device
+  (arduino-esp32 builds with exceptions, ESP8266 without; the macro in the `.cpp` covers
+  both). Nothing here knows about `SocketClient`, the socket or the sketch's callbacks.
+  The same format is implemented in sensordata2-server's `utils/fileWire.js` (tested in
+  `test/fileWire.test.js`) and web-ui's `utils/fileWire.js` — **three implementations of one
+  contract**, so a change to the header or the length prefix needs the same change in all three.
+- **The orchestration stays in `SocketClient`** — who asked for a file, when it is sent, and
+  on which thread. A `requestFile` only records the request in `s_uploadReq`; `loop()` sends
+  it on its next pass, after `_webSocket->loop()` has returned, so the socket read, the event
+  dispatch and the parsed message are not all sitting under the sketch's file callback on
+  `loop()`'s stack. One at a time: a second request while one is waiting gets `fileError`
+  with `"busy"`. `_sendFile`/`_sendFileError` use a local `JsonDocument`, never the shared
+  `_doc`, which still holds the inbound message. Inbound frames are parsed in the
+  `WStype_BIN` case and handed to the sketch's `fileReceived`.
+
+That boundary is where a future multi-chunk transfer would go: the codec is already out, so a
+`FileTransfer` class owning the per-transfer state (sequence numbers, reassembly buffer,
+timeouts) would take over the orchestration without touching the format. Keep the
+loop()-thread rule with it if it moves.
+
 ### Reboot reasons
 "Reboot" is the library's one word for it (as in `/sc/reboot` and `@reboot`), never reset or restart; the ESP's reset reasons and `ESP.restart()` are mapped onto it. The only exception is the ESP APIs. Since 1.9.0 `@diagnostics` sends `rebootReason` / `rebootCount` (before: `resetReason` / `resetCount`, which the server still accepts) and the count lives under NVS `sc-diag`/`rebootCount`: from 1.9.1 `Diagnostics::begin()` adds any old `resetCount` value into it and deletes the old key, so counts carry on (1.9.0 started them over without deleting the old key, hence adding rather than copying). `System` (`src/System/System.h`, all static) is the device itself: rebooting it and why it last booted. `@diagnostics` reports `rebootReason` as a code from `System::RebootReason`. The codes are the wire format: the server stores them unchanged and sensordata2's web-ui shows them as they come (Diagnostics tooltip), so a code may be added but never renamed. The chip only knows its own reasons and reports every `ESP.restart()` as `software`, so the library reboots through `System::reboot(reason)` instead: it saves the reason in NVS (`sc-diag`/`rebootReason`, enum + 1, skipped for plain `Software`), and the first `System::rebootReason()` of the boot (from `Diagnostics::begin()` in `init()`) uses it only if the chip agrees it was a software reboot, then clears it; later calls return the cached answer. `ota` = reboot into new firmware (server OTA or `/sc/upload`), `cmd` = asked for (`@reboot` or `/sc/reboot`), new-WiFi-credentials reboots stay `software`. Never call `ESP.restart()` directly in the library. ESP8266 maps its `rst_info` reasons onto the same codes (it used to send `ESP.getResetReason()`'s free text). ESP8266's own `ESPhttpUpdate` reboots by itself, so an OTA there still reads `software`.
 

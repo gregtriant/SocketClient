@@ -6,9 +6,9 @@
 #include "Log/Log.h"
 #include "SocketClientDefs.h"
 
+#include "FileTransfer/FileWire.h"
 #include "TimeClient/TimeClient.h"
 #include <stdarg.h>
-#include <new>
 
 #ifndef UPDATE_SIZE_UNKNOWN
 #define UPDATE_SIZE_UNKNOWN 0xFFFFFFFF
@@ -32,60 +32,6 @@ static struct {
     bool   pending = false;
     String filename, requestId;
 } s_uploadReq;
-
-// Largest file either way over the socket. The server enforces the same limit.
-static const size_t SC_FILE_MAX = 4096;
-
-// Allocation that reports failure instead of aborting. arduino-esp32 builds with exceptions on,
-// where a failed reserve()/assign() throws std::bad_alloc; ESP8266 builds without them, where
-// new aborts on its own and the capacity check is all there is.
-#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
-#define SC_TRY_ALLOC(stmt) try { stmt; } catch (const std::bad_alloc &) { return false; }
-#else
-#define SC_TRY_ALLOC(stmt) stmt;
-#endif
-
-static bool sc_reserve(std::vector<uint8_t> &v, size_t n) {
-    SC_TRY_ALLOC(v.reserve(n))
-    return v.capacity() >= n;
-}
-
-static bool sc_assign(std::vector<uint8_t> &v, const uint8_t *p, size_t n) {
-    SC_TRY_ALLOC(v.assign(p, p + n))
-    return v.size() == n;
-}
-
-// Builds one binary file frame: [uint16 big-endian header length][JSON header][data].
-// Sets hdr["message"] and hdr["size"]. One reserve() for the whole frame; false if it failed.
-static bool sc_buildFileFrame(JsonDocument &hdr, const std::vector<uint8_t> &data, std::vector<uint8_t> &out) {
-    hdr["message"] = "file";
-    hdr["size"]    = data.size();
-    size_t hlen = measureJson(hdr);
-    if (hlen > 0xFFFF) return false;
-    out.clear();
-    if (!sc_reserve(out, 2 + hlen + data.size())) return false;
-    out.resize(2 + hlen);
-    out[0] = (uint8_t)(hlen >> 8);
-    out[1] = (uint8_t)(hlen & 0xFF);
-    serializeJson(hdr, (char *)out.data() + 2, hlen);
-    out.insert(out.end(), data.begin(), data.end());
-    return true;
-}
-
-// Parses one inbound binary file frame (see sc_buildFileFrame). On success hdr holds the
-// header and data/dataLen point into p. False for anything malformed or over SC_FILE_MAX.
-static bool sc_parseFileFrame(const uint8_t *p, size_t len, JsonDocument &hdr, const uint8_t *&data, size_t &dataLen) {
-    if (!p || len < 2) return false;
-    size_t hlen = ((size_t)p[0] << 8) | p[1];
-    if (hlen > len - 2) return false;
-    if (deserializeJson(hdr, (const char *)p + 2, hlen)) return false;
-    const char *msg = hdr["message"] | "";
-    if (strcmp(msg, "file") != 0) return false;
-    if (!hdr["filename"].is<const char *>()) return false;
-    data    = p + 2 + hlen;
-    dataLen = len - 2 - hlen;
-    return dataLen <= SC_FILE_MAX;
-}
 
 void SocketClient::watchdog() {
     SocketClient *sc = this;
@@ -561,13 +507,13 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
                 JsonDocument hdr;
                 const uint8_t *data = nullptr;
                 size_t dataLen = 0;
-                if (!sc_parseFileFrame(payload, length, hdr, data, dataLen)) {
+                if (!FileWire::parse(payload, length, hdr, data, dataLen)) {
                     SC_LOGE(WS_TAG, "Bad file frame (%u bytes), dropped", (unsigned)length);
                     break;
                 }
                 if (!globalSC->_fileReceived) break;
                 std::vector<uint8_t> buf;
-                if (!sc_assign(buf, data, dataLen)) {
+                if (!FileWire::assign(buf, data, dataLen)) {
                     SC_LOGE(WS_TAG, "File frame dropped: out of memory (%u bytes)", (unsigned)dataLen);
                     break;
                 }
@@ -878,7 +824,7 @@ void SocketClient::_sendFile(const String &filename, const String &requestId) {
         _sendFileError(requestId, fname, "notFound");
         return;
     }
-    if (fileBuf.size() > SC_FILE_MAX) {
+    if (fileBuf.size() > FileWire::MAX_SIZE) {
         SC_LOGE(WS_TAG, "sendFile: file too large (%u bytes)", (unsigned)fileBuf.size());
         _sendFileError(requestId, fname, "tooLarge");
         return;
@@ -900,7 +846,7 @@ void SocketClient::_sendFile(const String &filename, const String &requestId) {
         if (requestId.isEmpty()) hdr["requestId"] = nullptr;
         else                     hdr["requestId"] = requestId;
         if (ipos >= 0)           hdr["contentType"] = ftype;
-        ok = sc_buildFileFrame(hdr, fileBuf, frame);
+        ok = FileWire::build(hdr, fileBuf, frame);
     }
     size_t fileSize = fileBuf.size();
     if (ok) {
