@@ -28,9 +28,13 @@ unsigned long SocketClient::reconnect_time = 30000;  //- 30 sec
 // after _webSocket->loop() has returned -- not inside the websocket callback, whose read, event
 // dispatch and parsed message would otherwise sit under the sketch's file callback on loop()'s stack.
 // One at a time: a request while one is waiting gets "busy". loop() thread only.
+// The user is copied, not referenced: _doc is cleared before loop() builds the header.
 static struct {
     bool   pending = false;
     String filename, requestId;
+    bool   hasUser = false;
+    int    userIdx = 0;
+    String userRole;
 } s_uploadReq;
 
 void SocketClient::watchdog() {
@@ -430,6 +434,15 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         // Run from loop() on its next pass, see s_uploadReq.
         s_uploadReq.filename  = filename;
         s_uploadReq.requestId = requestId;
+        // Who asked; absent if the server could not say.
+        s_uploadReq.hasUser = !_doc["user"].isNull();
+        if (s_uploadReq.hasUser) {
+            s_uploadReq.userIdx  = _doc["user"]["idx"] | 0;
+            s_uploadReq.userRole = _doc["user"]["role"].isNull() ? String("") : _doc["user"]["role"].as<String>();
+        } else {
+            s_uploadReq.userIdx  = 0;
+            s_uploadReq.userRole = String();
+        }
         s_uploadReq.pending   = true;
     }
 }
@@ -517,7 +530,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
                     SC_LOGE(WS_TAG, "File frame dropped: out of memory (%u bytes)", (unsigned)dataLen);
                     break;
                 }
-                globalSC->_fileReceived(hdr["filename"].as<String>(), buf);
+                globalSC->_fileReceived(hdr, buf);
             }
             break;
         case WStype_FRAGMENT_TEXT_START:
@@ -756,10 +769,18 @@ void SocketClient::loop() {
     if (_webSocket && _socket_on) _webSocket->loop();
     if (_diagnostics) _diagnostics->loop();
     if (s_uploadReq.pending) {   // a "requestFile" from the socket, see s_uploadReq
-        String filename = s_uploadReq.filename, requestId = s_uploadReq.requestId;
-        s_uploadReq.filename = s_uploadReq.requestId = String();
+        // Local doc: handed to the sketch, then sent. Empty values left out.
+        JsonDocument hdr;
+        if (!s_uploadReq.filename.isEmpty())  hdr["filename"]  = s_uploadReq.filename;
+        if (!s_uploadReq.requestId.isEmpty()) hdr["requestId"] = s_uploadReq.requestId;
+        if (s_uploadReq.hasUser) {
+            hdr["user"]["idx"]  = s_uploadReq.userIdx;
+            hdr["user"]["role"] = s_uploadReq.userRole;
+        }
+        s_uploadReq.filename = s_uploadReq.requestId = s_uploadReq.userRole = String();
+        s_uploadReq.hasUser = false;
         s_uploadReq.pending = false;
-        _sendFile(filename, requestId);
+        _sendFile(hdr);
     }
     _tc.loop();
     _tzFlush();
@@ -806,17 +827,25 @@ void SocketClient::_sendFileError(const String &requestId, const String &filenam
     _webSocket->sendTXT(textToSend);
 }
 
-// loop() thread (via s_uploadReq), outside the websocket callback.
-void SocketClient::_sendFile(const String &filename, const String &requestId) {
-    String fname = filename.isEmpty() ? "upload.bin" : filename;
+// loop() thread (via s_uploadReq), outside the websocket callback. `hdr` is the header the
+// file is sent with; the sketch fills the buffer and may change filename/contentType.
+void SocketClient::_sendFile(JsonDocument &hdr) {
+    // Restored after the callback: the sketch owns the filename, not the correlation.
+    const String requestId = hdr["requestId"].isNull() ? String("") : hdr["requestId"].as<String>();
 
     std::vector<uint8_t> fileBuf;
     if (_fileRequested) {
-        _fileRequested(fname, fileBuf);
+        _fileRequested(hdr, fileBuf);
     } else {
         const char *p = "Hello from device!";
         fileBuf.assign(p, p + strlen(p));
     }
+
+    String fname = hdr["filename"].isNull() ? String("") : hdr["filename"].as<String>();
+    if (fname.isEmpty()) fname = "upload.bin";
+    hdr["filename"] = fname;
+    if (requestId.isEmpty()) hdr["requestId"] = nullptr;
+    else                     hdr["requestId"] = requestId;
 
     if (fileBuf.empty()) {
         SC_LOGE(WS_TAG, "sendFile: empty buffer");
@@ -830,24 +859,8 @@ void SocketClient::_sendFile(const String &filename, const String &requestId) {
         return;
     }
 
-    String ftype;
-    int ipos = fname.indexOf('|');
-    if (ipos >= 0) {
-        ftype = fname.substring(ipos + 1);
-        fname = fname.substring(0, ipos);
-    }
-
     std::vector<uint8_t> frame;
-    bool ok = false;
-    {
-        // Local doc: the shared _doc is not ours to touch here.
-        JsonDocument hdr;
-        hdr["filename"] = fname;
-        if (requestId.isEmpty()) hdr["requestId"] = nullptr;
-        else                     hdr["requestId"] = requestId;
-        if (ipos >= 0)           hdr["contentType"] = ftype;
-        ok = FileWire::build(hdr, fileBuf, frame);
-    }
+    bool ok = FileWire::build(hdr, fileBuf, frame);
     size_t fileSize = fileBuf.size();
     if (ok) {
         // The frame holds its own copy: drop the sketch's buffer so only one file-sized

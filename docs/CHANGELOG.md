@@ -1,5 +1,25 @@
 # Changelog for Socket Client library
 
+## [1.11.0] - 2026-10-23
+
+### Changed
+
+- **Breaking:** both file callbacks now take the file's header instead of just its name:
+  `fileReceived(JsonDoc header, const std::vector<uint8_t> &buf)` and
+  `fileRequested(JsonDoc header, std::vector<uint8_t> &buf)`. A sketch reads the name as
+  `header["filename"]` and, new, who asked for or sent the file as `header["user"]["idx"]`
+  and `header["user"]["role"]` -- the same `user: { idx, role }` object `command` and
+  `entityChanged` already carry. A header with no `user` means the server could not say who
+  it was. Like every other callback, the header must not be stored past the return.
+- `fileRequested` is handed the header the file will be *sent* with, so a sketch renames the
+  file with `header["filename"] = "cfg.txt"` and sets `header["contentType"]` directly. The
+  `"cfg.txt|text/plain"` convention for smuggling a content type through the filename is
+  gone. `message` and `size` are still filled in by the library, and `requestId` is restored
+  after the callback whatever the sketch does to the header, so correlation cannot be broken
+  from a sketch.
+- Needs a server that sends `user` on `requestFile` and in the uploaded-file header; an older
+  server simply means no `user` in the header, which reads as "unknown" rather than failing.
+
 ## [1.10.0] - 2026-10-21
 
 ### Changed

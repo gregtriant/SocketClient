@@ -82,8 +82,10 @@ typedef std::function<void(JsonDoc doc)> SendStatusFunction;
 typedef std::function<void(JsonDoc doc)> ReceivedCommandFunction;
 typedef std::function<void(JsonDoc doc)> EntityChangedFunction;
 typedef std::function<void(JsonDoc doc)> ConnectedFunction;
-typedef std::function<void(const String &filename, const std::vector<uint8_t> &buf)> FileReceivedFunction;
-typedef std::function<void(String &filename, std::vector<uint8_t> &buf)>       FileRequestedFunction;
+// The file's header: filename, size, and user: { idx, role } like command/entityChanged.
+// fileRequested gets the header the file is sent with, so it may set filename/contentType.
+typedef std::function<void(JsonDoc header, const std::vector<uint8_t> &buf)> FileReceivedFunction;
+typedef std::function<void(JsonDoc header, std::vector<uint8_t> &buf)>       FileRequestedFunction;
 
 
 /**
@@ -110,7 +112,7 @@ struct SocketClientConfig_t {
     ReceivedCommandFunction receivedCommand;
     EntityChangedFunction entityChanged;
     ConnectedFunction connected;
-    FileReceivedFunction fileReceived = nullptr;   // called with downloaded file bytes; nullptr = no-op
+    FileReceivedFunction fileReceived = nullptr;   // called with the header + file bytes; nullptr = no-op
     FileRequestedFunction fileRequested = nullptr; // fill buf with upload data; nullptr = sends built-in test payload
 };
 

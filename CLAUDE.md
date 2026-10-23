@@ -41,6 +41,9 @@ All messages are JSON over WebSocket. Key message types:
 - `command` — server-initiated command dispatched to `receivedCommand` callback; carries `user: { idx, role }` (`idx` = the sender's number on this device, 1 for its first user and never reused; `role` = `"admin"` / `"user"`), set by the server from the sender's session and absent if unknown; the library passes it through untouched in `doc`
 - `@reboot` — sent by the browser's Reboot button, forwarded by the server like `command` (server needs `'@reboot': forwardMessageToDevice` in its handler map). Never reaches the app: it calls `reboot(System::RebootReason::Cmd)`, and the next `loop()` closes the socket and calls `System::reboot()` (named after the local `/sc/reboot`). A reconnect needs no device message: the browser's `closeConnection` has the server close the socket, and the device reconnects on its own
 - `entityChanged` — server notifies of entity value change; carries `user` like `command`
+- `requestFile` — the browser asks the device for a file; carries `user` like `command` (the
+  server adds it in `handleRequestFile` via `messageForDevice`, so a browser cannot claim to
+  be someone else). See **File transfer** below
 - `update` — triggers OTA firmware update from a URL
 - `@log` / `notification` — client-to-server log and notification messages
 
@@ -50,6 +53,27 @@ One binary WebSocket message per file, in either direction: `[uint16 big-endian 
 length][JSON header][raw bytes]`. The header carries `message: "file"`, `filename`, `size`,
 and for uploads `requestId` and an optional `contentType`. Files are capped at 4096 bytes
 (`FileWire::MAX_SIZE`) and the server enforces the same limit.
+
+Both directions tell the device **who** did it, as the same `user: { idx, role }` object
+`command` and `entityChanged` carry: the server puts it on the forwarded `requestFile`
+message, and in the header of a file a browser uploads (`POST /:id/files/send`, where
+`deviceAccess()` both checks access and says who the user is). A header with no `user` means
+the server could not say — an older server, or a request with no session behind it.
+
+So since 1.11.0 the sketch's two callbacks take the **header**, not just the filename:
+
+```cpp
+void fileReceived(JsonDoc header, const std::vector<uint8_t> &buf);  // header as it arrived
+void fileRequested(JsonDoc header, std::vector<uint8_t> &buf);       // header it will be sent with
+```
+
+`fileRequested` gets the outgoing header, so a sketch renames the file with
+`header["filename"] = "cfg.txt"` and sets `header["contentType"]` directly — which is why the
+old `"cfg.txt|text/plain"` smuggling convention is gone. `message` and `size` are set by the
+library at send time. `requestId` is read before the callback and written back after, so a
+sketch that rewrites or clears the header cannot leave the browser unable to match the reply
+to its request. The header must not be stored past the callback's return, like every other
+`JsonDoc`.
 
 The code is deliberately split in two:
 
@@ -66,7 +90,9 @@ The code is deliberately split in two:
   it on its next pass, after `_webSocket->loop()` has returned, so the socket read, the event
   dispatch and the parsed message are not all sitting under the sketch's file callback on
   `loop()`'s stack. One at a time: a second request while one is waiting gets `fileError`
-  with `"busy"`. `_sendFile`/`_sendFileError` use a local `JsonDocument`, never the shared
+  with `"busy"`. `s_uploadReq` copies the `user` out of the message rather than referencing
+  it, because `_doc` is cleared as soon as the message is dispatched — long before `loop()`
+  builds the header. `_sendFile`/`_sendFileError` use a local `JsonDocument`, never the shared
   `_doc`, which still holds the inbound message. Inbound frames are parsed in the
   `WStype_BIN` case and handed to the sketch's `fileReceived`.
 
