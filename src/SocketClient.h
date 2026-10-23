@@ -110,8 +110,7 @@ class SocketClient {
 
     void gotMessageSocket(uint8_t *payload);
     void _init();
-    void _downloadFile(const String &url, const String &filename, size_t size);
-    void _uploadFile(const String &url, const String &filename, const String &requestId);
+    void _sendFile(const String &filename, const String &requestId);
     void _sendFileError(const String &requestId, const String &filename, const char *error);
     void watchdog();
     static unsigned long last_dog;
