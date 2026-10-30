@@ -116,7 +116,8 @@ void stopReconnect();
 ### Sending Data
 
 ```cpp
-void sendStatusWithSocket(bool save = false);           // push status to server
+void sendStatusWithSocket(bool save = false, bool checkSubs = true);  // push status to server
+int  getSubscriberCount() const;                        // browsers with this device open
 void sendLog(const String &message);                    // send a raw log string
 void sendDebugLog(uint8_t level, const String &message);// send a levelled debug log
 void sendNotification(const String &message);
@@ -276,7 +277,7 @@ OTA can be triggered two ways:
 | Message | Trigger | Payload |
 |---------|---------|---------|
 | `connect` | On WebSocket connect | `{deviceId, deviceApp, deviceType, version, localIP, token}` |
-| `returningStatus` | `sendStatusWithSocket()` or server `askStatus` | `{data: {...}, save: bool}` |
+| `returningStatus` | `sendStatusWithSocket()` or server `askStatus` | `{data: {...}, save: bool}` — not sent while `getSubscriberCount()` is 0, unless `save` is true or `checkSubs` is false |
 | `@log` | `sendLog()` | `{text: "..."}` |
 | `@debugLog` | `sendDebugLog()` | `{level, text, timestamp}` |
 | `notification` | `sendNotification()` | `{body: "..."}` or `{body, options: {...}}` |
@@ -290,7 +291,8 @@ OTA can be triggered two ways:
 | `connected` | `connected(doc)` | Includes timezone, default data, debug config |
 | `command` | `receivedCommand(doc)` | Application command with `data` field, and `user`: who sent it (see below) |
 | `@reboot` | *(internal)* | The dashboard's Reboot button: the library reboots the device (like `/sc/reboot`, or `sc.reboot()` from your own code; `System::rebootReason()` tells you why this boot started); diagnostics then report the reset reason as `cmd` |
-| `askStatus` | *(internal)* | Triggers `sendStatusWithSocket()` automatically |
+| `askStatus` | *(internal)* | Triggers `sendStatusWithSocket(false, false)` automatically — always answered, since only a subscribed browser can cause it |
+| `@subs` | *(internal)* | How many browsers have this device open; read it with `getSubscriberCount()` |
 | `entityChanged` | `entityChanged(doc)` | Entity name + new value, and `user` (see below) |
 | `update` | *(internal)* | Triggers OTA from `url` field |
 | `file` (binary frame) | `fileReceived(filename, buf)` | The file arrives in the frame; library parses it and calls the callback with the bytes |

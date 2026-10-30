@@ -402,12 +402,21 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
             diagEnabled = debug["diagnostics"]["enabled"] | false;
         }
         _diagnostics->onDebugConfig(diagEnabled);
+    } else if (strcmp(_doc["message"], "@subs") == 0) {
+        // How many browsers have this device open. Sent on every change and once right after
+        // "connected". A server that never sends it leaves this at 0 - the server is always
+        // deployed ahead of the firmware, so that case is a misconfiguration, not a mode.
+        _subscriberCount = _doc["count"] | 0;
+        SC_LOGD(WS_TAG, "subs: %d", (int)_subscriberCount);
     } else if (strcmp(_doc["message"], "command") == 0) {
 		receivedCommand(_doc);
     } else if (strcmp(_doc["message"], "@reboot") == 0) {
         reboot(System::RebootReason::Cmd);
     } else if (strcmp(_doc["message"], "askStatus") == 0) {
-        sendStatusWithSocket();
+        // Always answered, whatever the count says. The server only forwards askStatus from a
+        // browser that is in this device's subscriber list, so receiving one *is* proof that
+        // somebody is watching - and the count may not have caught up yet.
+        sendStatusWithSocket(false, false);
     } else if (strcmp(_doc["message"], "entityChanged") == 0) {
         entityChanged(_doc);
     } else if (strcmp(_doc["message"], "update") == 0) {
@@ -447,7 +456,7 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
     }
 }
 
-void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
+void SocketClient::sendStatusWithSocket(bool save /*=false*/, bool checkSubs /*=true*/) {
     if (!_webSocket || !_webSocket->isConnected()) {
         return;
     }
@@ -459,6 +468,16 @@ void SocketClient::sendStatusWithSocket(bool save /*=false*/) {
 
     String JsonToSend = "";
     serializeJson(_doc, JsonToSend);
+
+    // Deliberately after sendStatus() and serializeJson(): the status is built exactly as
+    // before and the sketch's callback has already run, so a sketch that keeps its own
+    // bookkeeping in there behaves the same whether or not this goes out. Only the send is
+    // skipped. save is never skipped - that status is for the database, and the server saves
+    // it regardless of who is subscribed.
+    if (checkSubs && !save && _subscriberCount == 0) {
+        SC_LOGD(WS_TAG, "status not sent (no subs)");
+        return;
+    }
     SC_LOGD(WS_TAG, "Returning status: %s", JsonToSend.c_str());
     _webSocket->sendTXT(JsonToSend);
 }
@@ -472,6 +491,7 @@ void SocketClient_webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
             SC_LOGD(WS_TAG, "Disconnected!");
             globalSC->last_dog = 0;
             globalSC->last_png = 0;
+            globalSC->_subscriberCount = 0;
             break;
         case WStype_CONNECTED: {
             globalSC->_doc.clear();
