@@ -4,8 +4,6 @@
 
 #if defined(ESP32) || defined(LIBRETUYA)
 #include <lwip/dns.h>
-#elif defined(ESP8266)
-#include <lwip/dns.h>
 #endif
 
 
@@ -205,7 +203,9 @@ void WifiManager::_connectingToWifi(String ssid, String password)
     // NetworkManager::hostByName() does automatically on an interface IP change - this library
     // still supports the older 2.x cores that don't do it on their own, so it's done here
     // instead, once per connection attempt rather than tied to detecting the IP change itself.)
+#if defined(ESP32) || defined(LIBRETUYA)
     dns_clear_cache();
+#endif
 
     WiFi.begin(ssid.c_str(), password.c_str());
 }

@@ -1,5 +1,11 @@
 #include "HAMqtt.h"
+#if defined(ESP32) || defined(LIBRETUYA)
 #include <WiFi.h>
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#else
+#error Platform not supported
+#endif
 
 HAMqtt::HAMqtt(const HAMqttConfig_t *config) : _mqttClient(_wifiClient) {
     _config = config;

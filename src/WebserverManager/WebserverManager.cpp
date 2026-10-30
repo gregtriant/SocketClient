@@ -6,6 +6,10 @@
 #include "../Log/Log.h"
 #include "../System/System.h"
 
+#ifndef UPDATE_SIZE_UNKNOWN
+#define UPDATE_SIZE_UNKNOWN 0xFFFFFFFF
+#endif
+
 
 WebserverManager::WebserverManager(int port, WifiManager *wifiManager, DeviceInfo_t *deviceInfo, std::function<String()> getCurrentStatus)
     : _server(port)
@@ -46,12 +50,12 @@ void WebserverManager::_tryBeginServer()
 void WebserverManager::_setupWebServer()
 {
     // Connect to Wifi form submission.
-    _server.on("/sc/wifi/connect", HTTP_POST, [this](AsyncWebServerRequest *request)
+    _server.on("/sc/wifi/connect", AsyncWebRequestMethod::HTTP_POST, [this](AsyncWebServerRequest *request)
         {
             this->_handleWifiConnect(request);
         });
 
-    _server.on("/sc/wifi/disconnect", HTTP_GET, [this](AsyncWebServerRequest *request)
+    _server.on("/sc/wifi/disconnect", AsyncWebRequestMethod::HTTP_GET, [this](AsyncWebServerRequest *request)
         {
             request->send(200, "text/plain", "Disconnecting from Wi-Fi...");
             SC_LOGD(SERVER_TAG, "Disconnecting from Wi-Fi...");
@@ -59,19 +63,19 @@ void WebserverManager::_setupWebServer()
             //  _initAPMode();
         });
 
-    _server.on("/sc/reboot", HTTP_GET, [this](AsyncWebServerRequest *request)
+    _server.on("/sc/reboot", AsyncWebRequestMethod::HTTP_GET, [this](AsyncWebServerRequest *request)
         {
             this->_sendRebootPage(request);
         });
 
-    _server.on("/sc/reboot", HTTP_POST, [this](AsyncWebServerRequest *request)
+    _server.on("/sc/reboot", AsyncWebRequestMethod::HTTP_POST, [this](AsyncWebServerRequest *request)
         {
             request->send(200, "text/plain", "Rebooting...");
             SC_LOGD(SERVER_TAG, "Rebooting...");
             System::reboot(System::RebootReason::Cmd);
         });
 
-    _server.on("/sc/status", HTTP_GET, [this](AsyncWebServerRequest *request)
+    _server.on("/sc/status", AsyncWebRequestMethod::HTTP_GET, [this](AsyncWebServerRequest *request)
         {
             if (this->_getCurrentStatus == nullptr) {
                 request->send(200, "text/plain", "No status available");
@@ -93,7 +97,7 @@ void WebserverManager::_setupWebServer()
      * @param[out] lib      SocketClient library "<version> - <commit>"
      * @return json
      */
-    _server.on("/sc/info", HTTP_GET, [this](AsyncWebServerRequest *request)
+    _server.on("/sc/info", AsyncWebRequestMethod::HTTP_GET, [this](AsyncWebServerRequest *request)
         {
             String status = "";
             if (this->_getCurrentStatus != nullptr) {
@@ -113,7 +117,7 @@ void WebserverManager::_setupWebServer()
             request->send(200, "application/json", res);
         });
 
-    _server.on("/sc/wifi/scan", HTTP_GET, [this](AsyncWebServerRequest *request)
+    _server.on("/sc/wifi/scan", AsyncWebRequestMethod::HTTP_GET, [this](AsyncWebServerRequest *request)
         {
             int16_t n = WiFi.scanComplete();
             if (n == WIFI_SCAN_FAILED) {
@@ -143,17 +147,17 @@ void WebserverManager::_setupWebServer()
             request->send(200, "application/json", json);
         });
 
-    _server.on("/sc/wifi", HTTP_GET, [this](AsyncWebServerRequest *request)
+    _server.on("/sc/wifi", AsyncWebRequestMethod::HTTP_GET, [this](AsyncWebServerRequest *request)
         {
             this->_sendWifiPage(request);
         });
 
-    _server.on("/sc/upload", HTTP_GET, [this](AsyncWebServerRequest *request)
+    _server.on("/sc/upload", AsyncWebRequestMethod::HTTP_GET, [this](AsyncWebServerRequest *request)
         {
             this->_sendUploadPage(request);
         });
 
-    _server.on("/sc/upload", HTTP_POST,
+    _server.on("/sc/upload", AsyncWebRequestMethod::HTTP_POST,
         [this](AsyncWebServerRequest *request) {
             bool error = Update.hasError();
             request->send(error ? 500 : 200, "text/plain", error ? "OTA Update Failed!" : "Update Successful! Rebooting...");
@@ -184,7 +188,7 @@ void WebserverManager::_setupWebServer()
             }
         });
 
-    _server.on("/sc/style.css", HTTP_GET, [this](AsyncWebServerRequest *request)
+    _server.on("/sc/style.css", AsyncWebRequestMethod::HTTP_GET, [this](AsyncWebServerRequest *request)
         {
             AsyncWebServerResponse *response = request->beginResponse(200, "text/css", FPSTR(COMMON_CSS));
             response->addHeader("Cache-Control", "max-age=3600");
@@ -192,8 +196,8 @@ void WebserverManager::_setupWebServer()
         });
 
     // Register index last so specific /sc/... routes match first
-    _server.on("/sc/", HTTP_GET, [this](AsyncWebServerRequest *request) { this->_handleRoot(request); });
-    _server.on("/sc", HTTP_GET, [this](AsyncWebServerRequest *request) { this->_handleRoot(request); });
+    _server.on("/sc/", AsyncWebRequestMethod::HTTP_GET, [this](AsyncWebServerRequest *request) { this->_handleRoot(request); });
+    _server.on("/sc", AsyncWebRequestMethod::HTTP_GET, [this](AsyncWebServerRequest *request) { this->_handleRoot(request); });
 
     // Redirect any unknown URL to the main page
     _server.onNotFound([this](AsyncWebServerRequest *request)
