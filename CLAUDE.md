@@ -37,7 +37,8 @@ AP+STA fallback is final for the boot: once `WifiManager` falls back to AP+STA m
 All messages are JSON over WebSocket. Key message types:
 - `connect` — sent on WebSocket connect (includes deviceId, token, version, IP)
 - `connected` — received from server with timezone and persisted device data
-- `askStatus` / `returningStatus` — server requests status, client responds via the user's `sendStatus` callback
+- `askStatus` / `returningStatus` — server requests status, client responds via the user's `sendStatus` callback. `askStatus` is always answered, `checkSubs` or not: the server only forwards it from a browser already in this device's subscriber list, so receiving one is itself proof somebody is watching
+- `@subs` — how many browsers have this device open (`{ message: "@subs", count: N }`). Sent by the server on every change and once right after `connected`, count 0 included. See **Subscriber count** below
 - `command` — server-initiated command dispatched to `receivedCommand` callback; carries `user: { idx, role }` (`idx` = the sender's number on this device, 1 for its first user and never reused; `role` = `"admin"` / `"user"`), set by the server from the sender's session and absent if unknown; the library passes it through untouched in `doc`
 - `@reboot` — sent by the browser's Reboot button, forwarded by the server like `command` (server needs `'@reboot': forwardMessageToDevice` in its handler map). Never reaches the app: it calls `reboot(System::RebootReason::Cmd)`, and the next `loop()` closes the socket and calls `System::reboot()` (named after the local `/sc/reboot`). A reconnect needs no device message: the browser's `closeConnection` has the server close the socket, and the device reconnects on its own
 - `entityChanged` — server notifies of entity value change; carries `user` like `command`
@@ -46,6 +47,33 @@ All messages are JSON over WebSocket. Key message types:
   be someone else). See **File transfer** below
 - `update` — triggers OTA firmware update from a URL
 - `@log` / `notification` — client-to-server log and notification messages
+
+### Subscriber count
+
+`sendStatusWithSocket(bool save = false, bool checkSubs = true)` skips the *send* when no
+browser has the device open, so a device with nobody watching stops paying for live status.
+
+What it does **not** skip is building the status: `sendStatus()` — the consumer's callback —
+runs either way, and the JSON is serialized as before. Only `sendTXT` is skipped. That is
+deliberate: a callback that silently stops firing is a trap for the consumer, who may be doing
+their own bookkeeping in there. A sketch that wants to skip the work too (reading sensors is
+usually the expensive part, not the bytes) checks `getSubscriberCount()` first and doesn't
+call at all.
+
+Two statuses are never gated:
+- `save = true` — that status is for the database, and the server saves it regardless of who
+  is subscribed (see `statusDisposition` on the server). Gating it would silently lose
+  recorded data whenever nobody happened to be looking.
+- `checkSubs = false` — the explicit opt-out, for a sketch that wants the status on the wire
+  whatever the count.
+
+The count is `0` until the server says otherwise, and resets to `0` on disconnect. **This
+makes the server a hard dependency:** a server that never sends `@subs` leaves a `checkSubs`
+device permanently silent on live status. Deploy the server before shipping firmware 1.12.0,
+the same ordering the 1.10.0 file-transfer change needed. The reset on disconnect matters
+because the server sends `@subs` right after `connected`, while a sketch's `connected()`
+callback runs before that message is processed — without the reset, the first status of a new
+connection would be judged by the old socket's number.
 
 ### File transfer
 

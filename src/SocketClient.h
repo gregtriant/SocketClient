@@ -141,6 +141,13 @@ class SocketClient {
     bool _wifi_on = true;     // what loop() last applied
     void _applyOnOff();
 
+    // How many browsers have this device open, from the server's "@subs" message. Reset to 0
+    // on disconnect: the server sends "@subs" right after "connected", but a sketch's
+    // connected() callback runs before that message is processed, so a reconnect would
+    // otherwise gate on the previous socket's number. volatile because the socket task
+    // writes it while loop() and the sketch read it.
+    volatile int _subscriberCount = 0;
+
     // Set by reboot() (and so by the server's "@reboot" message); loop() closes the socket
     // and reboots once the caller has returned.
     volatile bool _pendingReboot = false;
@@ -156,7 +163,12 @@ public:
     // doubling backoff (see watchdog()'s definition) isn't immediately undone by this call.
     void reconnect(bool resetBackoff = true);
     void stopReconnect();
-    void sendStatusWithSocket(bool save = false);  //- do the default (no receiverid)
+    // checkSubs (default true): don't put this status on the wire while no browser has the
+    // device open - see getSubscriberCount(). The status is still *built* either way, so the
+    // sketch's sendStatus() callback always runs; only the send is skipped. A status with
+    // save = true is always sent: it is meant for the database, which does not care whether
+    // anyone is watching. Pass checkSubs = false to send regardless of the count.
+    void sendStatusWithSocket(bool save = false, bool checkSubs = true);
     void sendLog(const String &message);
     void sendDebugLog(uint8_t level, const String &message);
     void sendNotification(const String &message);
@@ -190,6 +202,11 @@ public:
     // Getters.
     String getCurrentStatus();
     String getVersion();
+
+    // Browsers with this device open, per the server's last "@subs". 0 until the server says
+    // otherwise, including before the first "@subs" of a connection, so a sketch that skips
+    // reading its sensors when this is 0 stays quiet until somebody is actually watching.
+    int getSubscriberCount() const { return _subscriberCount; }
 
     // Setters.
     void setAppAndVersion(const char *deviceApp, float version) {
