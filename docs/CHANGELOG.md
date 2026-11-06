@@ -1,5 +1,47 @@
 # Changelog for Socket Client library
 
+## [1.13.0] - 2026-11-06
+
+### Added
+
+- The device now reports its own OTA progress: `{"message":"otaProgress","data":{"written","total"}}`
+  as the image is written, and `{"message":"otaError","data":{"code","detail"}}` when an update
+  stops. `code` is one of `downloadFailed`, `downloadAborted`, `flashFailed` or `tooLarge`.
+  Reports are throttled to one every 500 ms or every 2% of the image, whichever comes first,
+  except the last one, which always goes out — it is what moves the UI off "sending".
+- ESP32 downloads firmware over `https://` when the server gives it an https URL, using
+  `WiFiClientSecure` with `setInsecure()`. There is deliberately no fallback to plain HTTP: the
+  server only hands out that scheme to a chip and a library version that can fetch it, so TLS
+  failing here means something is actually wrong and should be visible. The certificate is not
+  pinned — a CA rotation would brick OTA on every device in the field, and the only way to fix
+  that would be the OTA that no longer works. The short-lived download token in the URL is what
+  authorizes the request; TLS is here for confidentiality.
+- ESP8266 keeps its plain-HTTP download unchanged. A BearSSL handshake needs ~16–22 kB of heap
+  and there is no room for a second TLS context beside the socket's during an OTA, so an
+  `https://` URL is refused with `downloadFailed` rather than attempted.
+
+### Changed
+
+- `Update.begin()` on ESP32 is given the real image size instead of `UPDATE_SIZE_UNKNOWN`, so an
+  image too large for the update partition fails before the first flash write, with the running
+  firmware still intact. A response with no `Content-Length` is refused for the same reason.
+- An `update` message is now recorded and run from `loop()`, not from inside the websocket's
+  event dispatch. The download blocks for its whole duration, and it used to do that on the
+  socket's own stack, inside the `_webSocket->loop()` call that delivered the message. A second
+  `update` arriving while one is running is dropped rather than queued.
+- A short `Update.write()` or a failed `Update.end()` now aborts and reports `flashFailed`
+  instead of finalizing a corrupt image and rebooting into it. A connection that closes before
+  the whole image has arrived reports `downloadAborted`.
+
+### Notes
+
+- A server older than the release that added these has no handler for `otaProgress` or
+  `otaError` and ignores both, so this version is safe to flash against one. The progress bar
+  simply does not appear until the server is updated.
+- Because the download no longer answers pings for its duration on ESP8266, the server must be
+  the one to exempt a device it has marked updating from its watchdog. That is in the server,
+  not here.
+
 ## [1.11.0] - 2026-10-23
 
 ### Changed
