@@ -133,10 +133,12 @@ void OTAManager::_checkUpdate(String host)
     WiFiClient *stream = client.getStreamPtr();
     // read all data from server
     SC_LOGD(OTA_TAG, "Updating firmware...");
+    uint32_t lastDataMs = millis();
     while (client.connected() && (len > 0 || len == -1)) {
       // get available data size
       size_t size = stream->available();
       if (size) {
+        lastDataMs = millis();
         // read up to 128 byte
         int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
         // pass to function
@@ -148,6 +150,14 @@ void OTAManager::_checkUpdate(String host)
         if (len > 0) {
           len -= c;
         }
+      } else if ((millis() - lastDataMs) >= OTA_STALL_TIMEOUT_MS) {
+        // Nothing for OTA_STALL_TIMEOUT_MS. client.connected() can stay true forever on a
+        // half-open connection, so this is the only way out of the loop that doesn't need
+        // someone to walk over and pull the power.
+        Update.abort();
+        _fail("downloadAborted", "no data for 30s");
+        client.end();
+        return;
       }
       delay(1);
     }
@@ -235,7 +245,14 @@ void OTAManager::updatingMode(String updateURL)
   }
 
   // wait for WiFi connection
-  if (WiFi.status() == WL_CONNECTED)
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    // Returning quietly here left the server to work it out from three minutes of silence,
+    // which is the exact thing the progress reporting exists to replace.
+    _fail("downloadFailed", "wifi not connected");
+    return;
+  }
+
   {
     WiFiClient client;
     ESPhttpUpdate.setLedPin(LED_BUILTIN, LOW);

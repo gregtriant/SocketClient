@@ -29,6 +29,12 @@ typedef std::function<void(const char *code, const char *detail)> OtaErrorFn;
 // to be either late enough or large enough to be worth sending.
 static const uint32_t OTA_PROGRESS_MIN_INTERVAL_MS = 500;
 static const int OTA_PROGRESS_MIN_PERCENT = 2;
+// How long the download may deliver nothing at all before we give up on it. A half-open TCP
+// connection never trips client.connected(), so without this the read loop spins forever:
+// loop() never returns, the device stops reporting, stops reading sensors and never reboots,
+// and only a power cycle brings it back. Generous enough for a slow link, short enough that
+// the server's own 3-minute reboot budget isn't what notices.
+static const uint32_t OTA_STALL_TIMEOUT_MS = 30000;
 
 class OTAManager
 {

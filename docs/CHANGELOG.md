@@ -28,7 +28,12 @@
 - An `update` message is now recorded and run from `loop()`, not from inside the websocket's
   event dispatch. The download blocks for its whole duration, and it used to do that on the
   socket's own stack, inside the `_webSocket->loop()` call that delivered the message. A second
-  `update` arriving while one is running is dropped rather than queued.
+  `update` arriving while one is running cannot be dispatched until the first returns, since
+  nothing reads the socket while the download blocks; `_otaInFlight` guards the case anyway.
+- A download that delivers nothing for 30s is abandoned with `downloadAborted`. A half-open
+  connection never trips `client.connected()`, so the read loop used to spin forever: the device
+  stopped reporting, stopped reading its sensors and never rebooted until someone power-cycled it.
+- ESP8266 with WiFi down reports `downloadFailed` instead of returning silently.
 - A short `Update.write()` or a failed `Update.end()` now aborts and reports `flashFailed`
   instead of finalizing a corrupt image and rebooting into it. A connection that closes before
   the whole image has arrived reports `downloadAborted`.
