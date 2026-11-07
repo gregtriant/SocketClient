@@ -46,6 +46,10 @@
 - Because the download no longer answers pings for its duration on ESP8266, the server must be
   the one to exempt a device it has marked updating from its watchdog. That is in the server,
   not here.
+- The server that goes out with this release hands every device a plain-HTTP URL. The short-lived
+  download token in the path is the authorization, and requiring TLS there would rule out the
+  ESP8266 entirely. The https support above is what lets a server turn it on later without a
+  firmware release; nothing in this library has to change for that.
 
 ## [1.11.0] - 2026-10-23
 
