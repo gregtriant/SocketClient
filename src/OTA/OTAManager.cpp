@@ -5,36 +5,15 @@ OTAManager::OTAManager() {}
 
 OTAManager::~OTAManager() {}
 
-// ESPhttpUpdate takes plain C callbacks with no user pointer, so the ESP8266 progress and
-// error hooks below have to be static. _otaManager is a single object that lives as long as
+// ESPhttpUpdate takes plain C callbacks with no user pointer, so the ESP8266 error hook
+// below has to be static. _otaManager is a single object that lives as long as
 // the sketch does, so a file-static pointer to it, set when an update starts, is enough to
 // get back to the instance.
 static OTAManager *s_self = nullptr;
 
-void OTAManager::setCallbacks(OtaProgressFn onProgress, OtaErrorFn onError)
+void OTAManager::setCallbacks(OtaErrorFn onError)
 {
-  _onProgress = onProgress;
   _onError = onError;
-}
-
-void OTAManager::_report(uint32_t written, uint32_t total)
-{
-  if (!_onProgress)
-    return;
-
-  const bool finished = (total > 0 && written >= total);
-  if (!finished) {
-    const uint32_t now = millis();
-    const int percent = (total > 0) ? (int)((written * 100ULL) / total) : -1;
-    const bool lateEnough = (now - _lastReportMs) >= OTA_PROGRESS_MIN_INTERVAL_MS;
-    const bool bigEnough = (percent >= 0) && (percent - _lastReportPercent >= OTA_PROGRESS_MIN_PERCENT);
-    if (!lateEnough && !bigEnough)
-      return;
-    _lastReportMs = now;
-    _lastReportPercent = percent;
-  }
-
-  _onProgress(written, total);
 }
 
 void OTAManager::_fail(const char *code, const char *detail)
@@ -47,17 +26,12 @@ void OTAManager::_fail(const char *code, const char *detail)
 void OTAManager::startOTA(String updateURL)
 {
   s_self = this;
-  // Each attempt reports from scratch: these persist across attempts on this one long-lived
-  // object, and a stale percent would swallow the first reports of the next download.
-  _lastReportMs = 0;
-  _lastReportPercent = -1;
 #if defined(ESP32) || defined(LIBRETUYA)
   _checkUpdate(updateURL);
 #elif defined(ESP8266)
   updatingMode(updateURL);
 #endif
 }
-
 
 #if defined(ESP32) || defined(LIBRETUYA)
 void OTAManager::_checkUpdate(String host)
@@ -126,7 +100,6 @@ void OTAManager::_checkUpdate(String host)
       return;
     }
     SC_LOGD(OTA_TAG, "FW Size: %u\n", _totalLength);
-    _report(0, _totalLength);
     // create buffer for read
     uint8_t buff[128] = {0};
     // get tcp stream
@@ -191,7 +164,6 @@ bool OTAManager::_updateFirmware(uint8_t *data, size_t len)
   _currentLength += len;
   // Print dots while waiting for update to finish
   SC_LOGV2(".");
-  _report(_currentLength, _totalLength);
   // if current length of written firmware is not equal to total firmware size, repeat
   if (_currentLength != _totalLength)
     return true;
@@ -218,17 +190,10 @@ void OTAManager::update_finished()
   SC_LOGD(OTA_TAG, "CALLBACK:  HTTP update process finished");
 }
 
-void OTAManager::update_progress(int cur, int total)
-{
-  SC_LOGD(OTA_TAG, "CALLBACK:  HTTP update process at %d of %d bytes...\n", cur, total);
-  // Static because ESPhttpUpdate takes a plain function pointer; s_self is set in startOTA.
-  if (s_self)
-    s_self->_report((uint32_t)cur, (uint32_t)total);
-}
-
 void OTAManager::update_error(int err)
 {
   SC_LOGD(OTA_TAG, "CALLBACK:  HTTP update fatal error code %d\n", err);
+  // Static because ESPhttpUpdate takes a plain function pointer; s_self is set in startOTA.
   if (s_self)
     s_self->_fail("downloadAborted", ESPhttpUpdate.getLastErrorString().c_str());
 }
@@ -248,7 +213,7 @@ void OTAManager::updatingMode(String updateURL)
   if (WiFi.status() != WL_CONNECTED)
   {
     // Returning quietly here left the server to work it out from three minutes of silence,
-    // which is the exact thing the progress reporting exists to replace.
+    // which is the exact thing the error reporting exists to replace.
     _fail("downloadFailed", "wifi not connected");
     return;
   }
@@ -258,7 +223,6 @@ void OTAManager::updatingMode(String updateURL)
     ESPhttpUpdate.setLedPin(LED_BUILTIN, LOW);
     ESPhttpUpdate.onStart(OTAManager::update_started);
     ESPhttpUpdate.onEnd(OTAManager::update_finished);
-    ESPhttpUpdate.onProgress(OTAManager::update_progress);
     ESPhttpUpdate.onError(OTAManager::update_error);
 
     t_httpUpdate_return ret = ESPhttpUpdate.update(client, updateURL); // t_httpUpdate_return ret = ESPhttpUpdate.update(client, "server", 80, "file.bin");

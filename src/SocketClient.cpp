@@ -468,25 +468,13 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
     }
 }
 
-// How far through the download this device is, for whoever is watching it in the browser.
-//
-// Built into a local JsonDocument, never _doc: _doc is shared between inbound parsing and
-// outbound building, and these are sent from deep inside the OTA -- on ESP8266 from an
-// ESPhttpUpdate callback -- where clobbering the document the caller is still reading would
-// be very hard to see. Throttling already happened in OTAManager; this just sends.
-void SocketClient::_sendOtaProgress(uint32_t written, uint32_t total) {
-    if (!_webSocket || !_webSocket->isConnected()) return;
-    JsonDocument doc;
-    doc["message"] = "otaProgress";
-    doc["data"]["written"] = written;
-    doc["data"]["total"] = total;
-    String out;
-    serializeJson(doc, out);
-    _webSocket->sendTXT(out);
-}
-
 // Why an update stopped. A server older than this release has no handler for it and drops
 // it, which is the intended outcome: the device is no worse off than before it told anyone.
+//
+// Built into a local JsonDocument, never _doc: _doc is shared between inbound parsing and
+// outbound building, and this is sent from deep inside the OTA -- on ESP8266 from an
+// ESPhttpUpdate callback -- where clobbering the document the caller is still reading would
+// be very hard to see.
 void SocketClient::_sendOtaError(const char *code, const char *detail) {
     if (!_webSocket || !_webSocket->isConnected()) return;
     JsonDocument doc;
@@ -730,7 +718,6 @@ void SocketClient::_init() {
 
     _otaManager = new OTAManager();
     _otaManager->setCallbacks(
-        [this](uint32_t written, uint32_t total) { _sendOtaProgress(written, total); },
         [this](const char *code, const char *detail) { _sendOtaError(code, detail); });
     reconnect();
 }

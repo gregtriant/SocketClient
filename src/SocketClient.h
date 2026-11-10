@@ -112,7 +112,6 @@ class SocketClient {
     void _init();
     void _sendFile(JsonDocument &hdr);
     void _sendFileError(const String &requestId, const String &filename, const char *error);
-    void _sendOtaProgress(uint32_t written, uint32_t total);
     void _sendOtaError(const char *code, const char *detail);
     // True for as long as startOTA is on the stack. A second "update" arriving mid-download
     // is dropped rather than queued: the device is already flashing one image, and the only

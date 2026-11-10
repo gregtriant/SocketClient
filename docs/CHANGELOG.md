@@ -4,11 +4,14 @@
 
 ### Added
 
-- The device now reports its own OTA progress: `{"message":"otaProgress","data":{"written","total"}}`
-  as the image is written, and `{"message":"otaError","data":{"code","detail"}}` when an update
-  stops. `code` is one of `downloadFailed`, `downloadAborted`, `flashFailed` or `tooLarge`.
-  Reports are throttled to one every 500 ms or every 2% of the image, whichever comes first,
-  except the last one, which always goes out — it is what moves the UI off "sending".
+- The device now reports why an update stopped: `{"message":"otaError","data":{"code","detail"}}`,
+  where `code` is one of `downloadFailed`, `downloadAborted`, `flashFailed` or `tooLarge`.
+- It deliberately does **not** report progress. How far a download has got is counted by the
+  server as it streams the image: that is the only source for a device already in the field,
+  and it is within a socket buffer of what this chip has received. Why an update *failed* is
+  the part only this side can see — `tooLarge` about a second after the GET, `flashFailed` at
+  the end of the flash — and without it the server waits out its whole three-minute reboot
+  budget before reporting something vague.
 - ESP32 downloads firmware over `https://` when the server gives it an https URL, using
   `WiFiClientSecure` with `setInsecure()`. There is deliberately no fallback to plain HTTP: the
   server only hands out that scheme to a chip and a library version that can fetch it, so TLS
@@ -40,9 +43,9 @@
 
 ### Notes
 
-- A server older than the release that added these has no handler for `otaProgress` or
-  `otaError` and ignores both, so this version is safe to flash against one. The progress bar
-  simply does not appear until the server is updated.
+- A server older than the release that added it has no handler for `otaError` and ignores it,
+  so this version is safe to flash against one. A failed update then looks the way it always
+  did: no explanation, and the server's three-minute reboot timeout is what ends it.
 - Because the download no longer answers pings for its duration on ESP8266, the server must be
   the one to exempt a device it has marked updating from its watchdog. That is in the server,
   not here.
