@@ -1,5 +1,59 @@
 # Changelog for Socket Client library
 
+## [1.13.0] - 2026-11-06
+
+### Added
+
+- The device now reports why an update stopped: `{"message":"otaError","data":{"code","detail"}}`,
+  where `code` is one of `downloadFailed`, `downloadAborted`, `flashFailed` or `tooLarge`.
+- It deliberately does **not** report progress. How far a download has got is counted by the
+  server as it streams the image: that is the only source for a device already in the field,
+  and it is within a socket buffer of what this chip has received. Why an update *failed* is
+  the part only this side can see — `tooLarge` about a second after the GET, `flashFailed` at
+  the end of the flash — and without it the server waits out its whole three-minute reboot
+  budget before reporting something vague.
+- ESP32 downloads firmware over `https://` when the server gives it an https URL, using
+  `WiFiClientSecure` with `setInsecure()`. There is deliberately no fallback to plain HTTP: the
+  server only hands out that scheme to a chip and a library version that can fetch it, so TLS
+  failing here means something is actually wrong and should be visible. The certificate is not
+  pinned — a CA rotation would brick OTA on every device in the field, and the only way to fix
+  that would be the OTA that no longer works. The short-lived download token in the URL is what
+  authorizes the request; TLS is here for confidentiality.
+- ESP8266 keeps its plain-HTTP download unchanged. A BearSSL handshake needs ~16–22 kB of heap
+  and there is no room for a second TLS context beside the socket's during an OTA, so an
+  `https://` URL is refused with `downloadFailed` rather than attempted.
+
+### Changed
+
+- `Update.begin()` on ESP32 is given the real image size instead of `UPDATE_SIZE_UNKNOWN`, so an
+  image too large for the update partition fails before the first flash write, with the running
+  firmware still intact. A response with no `Content-Length` is refused for the same reason.
+- An `update` message is now recorded and run from `loop()`, not from inside the websocket's
+  event dispatch. The download blocks for its whole duration, and it used to do that on the
+  socket's own stack, inside the `_webSocket->loop()` call that delivered the message. A second
+  `update` arriving while one is running cannot be dispatched until the first returns, since
+  nothing reads the socket while the download blocks; `_otaInFlight` guards the case anyway.
+- A download that delivers nothing for 30s is abandoned with `downloadAborted`. A half-open
+  connection never trips `client.connected()`, so the read loop used to spin forever: the device
+  stopped reporting, stopped reading its sensors and never rebooted until someone power-cycled it.
+- ESP8266 with WiFi down reports `downloadFailed` instead of returning silently.
+- A short `Update.write()` or a failed `Update.end()` now aborts and reports `flashFailed`
+  instead of finalizing a corrupt image and rebooting into it. A connection that closes before
+  the whole image has arrived reports `downloadAborted`.
+
+### Notes
+
+- A server older than the release that added it has no handler for `otaError` and ignores it,
+  so this version is safe to flash against one. A failed update then looks the way it always
+  did: no explanation, and the server's three-minute reboot timeout is what ends it.
+- Because the download no longer answers pings for its duration on ESP8266, the server must be
+  the one to exempt a device it has marked updating from its watchdog. That is in the server,
+  not here.
+- The server that goes out with this release hands every device a plain-HTTP URL. The short-lived
+  download token in the path is the authorization, and requiring TLS there would rule out the
+  ESP8266 entirely. The https support above is what lets a server turn it on later without a
+  firmware release; nothing in this library has to change for that.
+
 ## [1.11.0] - 2026-10-23
 
 ### Changed

@@ -37,6 +37,15 @@ static struct {
     String userRole;
 } s_uploadReq;
 
+// An "update" is recorded the same way, and for a stronger version of the same reason: the
+// OTA blocks for the whole download, and running it from gotMessageSocket would park a
+// minute of flashing on the websocket's own event-dispatch stack, inside the _webSocket->loop()
+// call that delivered the message. loop() starts it on its next pass instead. loop() thread only.
+static struct {
+    bool   pending = false;
+    String url;
+} s_otaReq;
+
 void SocketClient::watchdog() {
     SocketClient *sc = this;
     if (!sc || !sc->_webSocket || !sc->_socket_on)   // socketOff()/wifiOff(): no reconnects
@@ -422,7 +431,10 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
     } else if (strcmp(_doc["message"], "update") == 0) {
         String updateURL = _doc["url"];
         SC_LOGD(WS_TAG, "Update URL: %s", updateURL.c_str());
-        _otaManager->startOTA(updateURL);
+        // Recorded, not run -- see s_otaReq. The URL is copied because _doc is cleared
+        // before loop() gets a chance to look at it.
+        s_otaReq.url = updateURL;
+        s_otaReq.pending = true;
     } else if (strcmp(_doc["message"], "requestFile") == 0) {
         // ArduinoJson serializes a null/missing variant to the literal string
         // "null" via .as<String>() — that would be a truthy sentinel on the
@@ -454,6 +466,24 @@ void SocketClient::gotMessageSocket(uint8_t *payload) {
         }
         s_uploadReq.pending   = true;
     }
+}
+
+// Why an update stopped. A server older than this release has no handler for it and drops
+// it, which is the intended outcome: the device is no worse off than before it told anyone.
+//
+// Built into a local JsonDocument, never _doc: _doc is shared between inbound parsing and
+// outbound building, and this is sent from deep inside the OTA -- on ESP8266 from an
+// ESPhttpUpdate callback -- where clobbering the document the caller is still reading would
+// be very hard to see.
+void SocketClient::_sendOtaError(const char *code, const char *detail) {
+    if (!_webSocket || !_webSocket->isConnected()) return;
+    JsonDocument doc;
+    doc["message"] = "otaError";
+    doc["data"]["code"] = code ? code : "";
+    doc["data"]["detail"] = detail ? detail : "";
+    String out;
+    serializeJson(doc, out);
+    _webSocket->sendTXT(out);
 }
 
 void SocketClient::sendStatusWithSocket(bool save /*=false*/, bool checkSubs /*=true*/) {
@@ -687,6 +717,8 @@ void SocketClient::_init() {
     }
 
     _otaManager = new OTAManager();
+    _otaManager->setCallbacks(
+        [this](const char *code, const char *detail) { _sendOtaError(code, detail); });
     reconnect();
 }
 
@@ -801,6 +833,21 @@ void SocketClient::loop() {
         s_uploadReq.hasUser = false;
         s_uploadReq.pending = false;
         _sendFile(hdr);
+    }
+    if (s_otaReq.pending) {   // an "update" from the socket, see s_otaReq
+        const String url = s_otaReq.url;
+        s_otaReq.url = String();
+        s_otaReq.pending = false;
+        if (_otaInFlight) {
+            SC_LOGW(WS_TAG, "Ignoring an update: one is already running");
+        } else {
+            // Blocks here for the whole download, and on success never returns -- the
+            // manager reboots into the new image. The server stops pinging a device it has
+            // marked updating, so nothing here has to keep the socket alive meanwhile.
+            _otaInFlight = true;
+            _otaManager->startOTA(url);
+            _otaInFlight = false;
+        }
     }
     _tc.loop();
     _tzFlush();

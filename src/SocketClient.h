@@ -112,6 +112,11 @@ class SocketClient {
     void _init();
     void _sendFile(JsonDocument &hdr);
     void _sendFileError(const String &requestId, const String &filename, const char *error);
+    void _sendOtaError(const char *code, const char *detail);
+    // True for as long as startOTA is on the stack. A second "update" arriving mid-download
+    // is dropped rather than queued: the device is already flashing one image, and the only
+    // thing a queued second one could do is start again after a reboot that never comes.
+    bool _otaInFlight = false;
     void watchdog();
     static unsigned long last_dog;
     static unsigned long last_png;
