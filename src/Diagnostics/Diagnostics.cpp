@@ -47,6 +47,9 @@ void Diagnostics::_send() {
     doc["freeHeap"]    = (uint32_t)ESP.getFreeHeap();
 #if defined(ESP32) || defined(LIBRETUYA)
     doc["minFreeHeap"] = (uint32_t)ESP.getMinFreeHeap();
+    doc["largestFreeBlock"] = (uint32_t)ESP.getMaxAllocHeap();
+#elif defined(ESP8266)
+    doc["largestFreeBlock"] = (uint32_t)ESP.getMaxFreeBlockSize();
 #endif
     doc["rebootReason"]   = _rebootReason;
     doc["rebootCount"]    = _rebootCount;
