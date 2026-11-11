@@ -1,5 +1,15 @@
 # Changelog for Socket Client library
 
+## [1.14.0] - 2026-11-11
+
+### Added
+
+- Diagnostics now report `largestFreeBlock`: the largest single allocation the heap can
+  still serve (`ESP.getMaxAllocHeap()` on ESP32, `ESP.getMaxFreeBlockSize()` on ESP8266).
+  `freeHeap` alone cannot say whether an allocation will succeed -- a device with 40 kB free
+  spread over a hundred holes fails to open a TLS context exactly like one with 4 kB free.
+  Unlike `minFreeHeap`, which ESP8266 has no API for, this is sent by both chips.
+
 ## [1.13.0] - 2026-11-06
 
 ### Added
